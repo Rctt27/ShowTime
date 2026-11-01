@@ -43,12 +43,21 @@ public sealed record AppPaths(
                     .OfType<string>()
                     .Where(root => root.Length > 0)])
             : Path.Combine(home, "Pictures", AppName);
+        var shippedModels = OperatingSystem.IsWindows()
+            ? Path.Combine(WindowsShippedFolder(AppContext.BaseDirectory), "models")
+            : ShippedModels;
         return new AppPaths(Path.Combine(appData, AppName, "settings.json"), Path.Combine(localAppData, AppName, "logs"), outputFolder,
-            Path.Combine(localAppData, AppName, "work"), [ShippedModels, Path.Combine(localAppData, AppName, "models")]);
+            Path.Combine(localAppData, AppName, "work"), [shippedModels, Path.Combine(localAppData, AppName, "models")]);
     }
 
-    /// <summary>The release puts the model in a models folder next to ShowTime.</summary>
+    /// <summary>The macOS app may hold the model in a models folder next to its assemblies.</summary>
     private static string ShippedModels => Path.Combine(AppContext.BaseDirectory, "models");
+
+    /// <summary>
+    /// The folder of the Windows zip holding everything ShowTime.exe needs (ffmpeg, Whisper's native libraries in
+    /// runtimes, the model in models, the licences), so that ShowTime.exe is the one thing to open at its root.
+    /// </summary>
+    public static string WindowsShippedFolder(string baseDirectory) => Path.Combine(baseDirectory, "app");
 
     /// <summary>
     /// Pictures\ShowTime, unless Pictures is synced by OneDrive: captures must stay on this computer.
@@ -61,14 +70,17 @@ public sealed record AppPaths(
     }
 
     /// <summary>
-    /// The ffmpeg shipped with ShowTime (next to the exe, or in the app bundle's Contents/MacOS), then the PATH, then
-    /// where package managers put it, for a development build.
+    /// The ffmpeg shipped with ShowTime (in the Windows zip's app folder, or in the app bundle's Contents/MacOS), then
+    /// the PATH, then where package managers put it, for a development build.
     /// </summary>
     public static FfmpegLocator CreateFfmpegLocator(IFileSystem fileSystem)
     {
         string[] wellKnown = OperatingSystem.IsWindows() ? [] : ["/opt/homebrew/bin", "/usr/local/bin", "/usr/bin"];
+        var shipped = OperatingSystem.IsWindows()
+            ? WindowsShippedFolder(AppContext.BaseDirectory)
+            : FfmpegDirectory(AppContext.BaseDirectory);
         return new FfmpegLocator(
-            fileSystem, FfmpegDirectory(AppContext.BaseDirectory), Environment.GetEnvironmentVariable("PATH"),
+            fileSystem, shipped, Environment.GetEnvironmentVariable("PATH"),
             OperatingSystem.IsWindows() ? "ffmpeg.exe" : "ffmpeg", wellKnown);
     }
 

@@ -1,3 +1,5 @@
+using System.IO.Abstractions;
+using NSubstitute;
 using ShowTime.Infrastructure.Platform;
 
 namespace ShowTime.Infrastructure.IntegrationTests.Platform;
@@ -44,9 +46,26 @@ public sealed class AppPathsTests
     }
 
     [Fact]
-    public void The_model_shipped_next_to_ShowTime_is_looked_for_first()
+    public void The_Windows_zip_keeps_what_ShowTime_needs_in_an_app_folder() =>
+        AppPaths.WindowsShippedFolder(@"C:\Users\Me\ShowTime\").ShouldBe(Path.Combine(@"C:\Users\Me\ShowTime\", "app"));
+
+    [Fact]
+    public void The_model_shipped_with_ShowTime_is_looked_for_first()
     {
-        AppPaths.ForCurrentPlatform().ModelsFolders[0].ShouldBe(Path.Combine(AppContext.BaseDirectory, "models"));
+        var shipped = OperatingSystem.IsWindows() ? AppPaths.WindowsShippedFolder(AppContext.BaseDirectory) : AppContext.BaseDirectory;
+        AppPaths.ForCurrentPlatform().ModelsFolders[0].ShouldBe(Path.Combine(shipped, "models"));
+    }
+
+    [Fact]
+    public void On_Windows_the_shipped_ffmpeg_is_the_one_in_the_app_folder()
+    {
+        Assert.SkipUnless(OperatingSystem.IsWindows(), "Windows only.");
+        var shipped = Path.Combine(AppPaths.WindowsShippedFolder(AppContext.BaseDirectory), "ffmpeg.exe");
+        var fileSystem = Substitute.For<IFileSystem>();
+        fileSystem.Path.Combine(Arg.Any<string>(), Arg.Any<string>()).Returns(call => Path.Combine(call.ArgAt<string>(0), call.ArgAt<string>(1)));
+        fileSystem.File.Exists(Arg.Any<string>()).Returns(call => call.ArgAt<string>(0) == shipped);
+
+        AppPaths.CreateFfmpegLocator(fileSystem).Find("").ShouldBe(shipped);
     }
 
     [Fact]

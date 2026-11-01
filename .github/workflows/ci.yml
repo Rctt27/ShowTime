@@ -152,17 +152,13 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      # ShowTime.exe, Whisper's native libraries (runtimes\win-x64), ffmpeg.exe and the licence notices; without the
-      # model, which only releases ship.
-      - name: Publish ShowTime.exe
-        run: dotnet publish src/ShowTime.Windows -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o dist
-      - name: Add ffmpeg and the licence notices
+      # The same folder as the release zip: ShowTime.exe and LISEZ-MOI.txt; ffmpeg, Whisper's native libraries, the
+      # model and the licences in app.
+      - name: Build the folder of the zip
         shell: bash
-        run: |
-          bash build/fetch-ffmpeg.sh windows dist
-          cp THIRD-PARTY-NOTICES.md dist/
-          cp -r licenses dist/
-          test -f dist/ShowTime.exe && test -f dist/ffmpeg.exe && test -f dist/licenses/GPL-3.0.txt
+        run: bash build/package-windows.sh dist/ShowTime
+      - name: Check that the packaged ShowTime finds ffmpeg and can transcribe
+        run: ./build/check-windows-package.ps1 dist/ShowTime
       - uses: actions/upload-artifact@v4
         with:
           name: ShowTime-windows

@@ -16,8 +16,8 @@ public sealed partial class DirectShowGdigrab(Func<bool> hasAudioOutput) : IFfmp
 
     public string SystemAudioRequirement => "une sortie audio (haut-parleurs ou casque)";
 
-    public string InstallHint => "Il est livré avec ShowTime : extrayez de nouveau tout le zip, en gardant ffmpeg.exe à " +
-                                 "côté de ShowTime.exe, ou indiquez un autre ffmpeg dans les réglages.";
+    public string InstallHint => "Il est livré avec ShowTime : extrayez de nouveau tout le zip, en gardant le dossier app " +
+                                 "(qui contient ffmpeg.exe) à côté de ShowTime.exe, ou indiquez un autre ffmpeg dans les réglages.";
 
     public IReadOnlyList<string> ListDevicesArguments { get; } =
         ["-hide_banner", "-list_devices", "true", "-f", "dshow", "-i", "dummy"];

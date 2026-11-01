@@ -1,6 +1,7 @@
 using ShowTime.Core.Ports;
 using ShowTime.Core.Transcription;
 using Whisper.net;
+using Whisper.net.LibraryLoader;
 
 namespace ShowTime.Infrastructure.Transcription;
 
@@ -10,6 +11,14 @@ namespace ShowTime.Infrastructure.Transcription;
 /// </summary>
 public sealed class WhisperTranscriber : ITranscriber
 {
+    /// <summary>
+    /// Looks for Whisper's native libraries in <paramref name="folder"/>\runtimes\&lt;platform&gt; before the runtimes
+    /// folder next to the assemblies (a development build). Call it before the first transcription.
+    /// </summary>
+    public static void LoadNativeLibrariesFrom(string folder) =>
+        // Whisper.net searches the runtimes folder of this path's directory first; the file itself need not exist.
+        RuntimeOptions.LibraryPath = Path.Combine(folder, "whisper");
+
     /// <summary>
     /// Word by word: a segment of one character at most, cut between words, is one word with its punctuation. The
     /// subtitles are cut from them by the core (<see cref="SubtitleSegmenter"/>), which knows about pauses and grammar.

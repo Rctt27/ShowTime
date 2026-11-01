@@ -21,19 +21,12 @@ jobs:
       - uses: actions/setup-dotnet@v4
         with:
           global-json-file: global.json
-      # ShowTime.exe, Whisper's native libraries in runtimes\win-x64, and the model in models: all three side by side.
-      - run: dotnet publish src/ShowTime.Windows -c Release -r win-x64 --self-contained false -p:PublishSingleFile=true -o build/ShowTime
-      - name: Add the Whisper model
+      # ShowTime.exe and LISEZ-MOI.txt; ffmpeg, Whisper's native libraries, the model and the licences in app.
+      - name: Build the folder of the zip
         shell: bash
-        # ShowTime itself never downloads anything: the model is pinned and checked (build/fetch-whisper-model.sh).
-        run: bash build/fetch-whisper-model.sh build/ShowTime/models
-      - name: Add ffmpeg and the licence notices
-        shell: bash
-        run: |
-          bash build/fetch-ffmpeg.sh windows build/ShowTime
-          cp THIRD-PARTY-NOTICES.md build/ShowTime/
-          cp -r licenses build/ShowTime/
-          test -f build/ShowTime/ShowTime.exe && test -f build/ShowTime/ffmpeg.exe && test -f build/ShowTime/licenses/GPL-3.0.txt
+        run: bash build/package-windows.sh build/ShowTime
+      - name: Check that the packaged ShowTime finds ffmpeg and can transcribe
+        run: ./build/check-windows-package.ps1 build/ShowTime
       - name: Zip it, named after the version
         shell: pwsh
         run: |

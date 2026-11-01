@@ -145,7 +145,7 @@ public partial class SettingsWindow : Window
         ModelStatus.Text = path is not null
             ? (string.IsNullOrWhiteSpace(ModelBox.Text) ? "Livré avec ShowTime : " + path : "Modèle trouvé.")
             : "Modèle introuvable : les vidéos ne pourront pas être transcrites. Laissez le champ vide pour utiliser " +
-              "celui livré avec ShowTime (dossier « models » à côté de ShowTime.exe).";
+              "celui livré avec ShowTime (dossier « app\\models » à côté de ShowTime.exe).";
         ModelStatus.Foreground = path is not null ? System.Windows.Media.Brushes.DimGray : System.Windows.Media.Brushes.Firebrick;
         TranscribeBox.IsEnabled = path is not null || TranscribeBox.IsChecked == true;
     }

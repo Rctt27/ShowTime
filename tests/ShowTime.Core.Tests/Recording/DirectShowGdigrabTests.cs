@@ -22,6 +22,8 @@ public sealed class DirectShowGdigrabTests
         var hint = new DirectShowGdigrab(() => true).InstallHint;
         hint.ShouldContain("livré avec ShowTime");
         hint.ShouldContain("ffmpeg.exe");
+        // The zip keeps ffmpeg.exe in its app folder (AppPaths.WindowsShippedFolder).
+        hint.ShouldContain("dossier app");
         hint.ShouldNotContain("winget");
     }
 

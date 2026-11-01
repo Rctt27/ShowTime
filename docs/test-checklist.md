@@ -43,7 +43,8 @@ Avec l'exe publié (`dotnet publish src/ShowTime.Windows -c Release -r win-x64 -
 
 - [ ] `Ctrl+Maj+Impr. écran` : zone, cadre rouge autour, barre dessous ; `Ctrl+R` démarre après 3 secondes.
 - [ ] La gauche de la barre est le bouton marche/arrêt : prête, elle montre ▶ « Prêt à enregistrer · Démarrer (Ctrl+R) » et un clic lance le compte à rebours ; pendant le compte à rebours, un point grisé et pas de clic ; pendant l'enregistrement, ■ avec la durée et « Arrêter (Ctrl+D) », et un clic arrête et enregistre la vidéo (y compris pendant « Démarrage… ») ; pendant « Finalisation… », pas de clic.
-- [ ] Sur un PC sans ffmpeg installé : le zip extrait enregistre une vidéo (ffmpeg.exe est à côté de ShowTime.exe).
+- [ ] Le zip extrait ne montre que `ShowTime.exe`, `LISEZ-MOI.txt` et le dossier `app`.
+- [ ] Sur un PC sans ffmpeg installé : le zip extrait enregistre une vidéo (ffmpeg.exe est dans `app`).
 - [ ] Micro et son du PC, sans pilote audio virtuel : `ffmpeg -i video.mp4` montre une piste audio, le son joué est synchrone avec l'image, et la fin de la phrase prononcée avant « Arrêter » est présente.
 - [ ] Son du PC sans rien qui joue : l'aperçu dure autant que l'enregistrement.
 - [ ] Casque USB débranché pendant l'enregistrement : la vidéo se finalise, le son du PC devient muet jusqu'à la fin.
@@ -64,7 +65,7 @@ Avec l'exe publié (`dotnet publish src/ShowTime.Windows -c Release -r win-x64 -
 
 ### Sous-titres
 
-Avec le zip de la release (ou l'exe publié, avec un modèle `ggml-*.bin` dans un dossier `models` à côté).
+Avec le zip de la release, ou l'artefact `ShowTime-windows` de la CI (`build/package-windows.sh`), qui contient le modèle.
 
 - [ ] Bascule « Sous-titres » : grisée quand le micro est coupé ou sans modèle, avec l'infobulle qui l'explique ; le choix est retenu d'une vidéo à l'autre.
 - [ ] Enregistrer une minute en parlant, avec « Sous-titres » : l'aperçu s'ouvre et lit la vidéo aussitôt ; le panneau de gauche montre « Transcription du micro… » avec sa progression, puis les blocs.

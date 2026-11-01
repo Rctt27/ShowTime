@@ -23,7 +23,7 @@ Transcrivent le micro en sous-titres, sur l'ordinateur.
 
 ## Modèle Whisper `ggml-small-q5_1.bin`
 
-Le modèle de transcription, livré dans le dossier `models`.
+Le modèle de transcription, livré dans le dossier `models` (`app\models` sous Windows).
 
 - Licence : MIT (modèles Whisper d'OpenAI, convertis par le projet whisper.cpp).
 - Origine : https://huggingface.co/ggerganov/whisper.cpp

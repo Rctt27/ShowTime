@@ -40,8 +40,9 @@
   </ItemGroup>
 
   <!--
-    Whisper.net.Runtime brings the native libraries of every platform, which Whisper.net loads from runtimes\<rid> next
-    to the exe (a single-file exe cannot hold them): a published ShowTime keeps its own platform's only.
+    Whisper.net.Runtime brings the native libraries of every platform, which Whisper.net loads from runtimes\<rid> (a
+    single-file exe cannot hold them; the zip keeps it in its app folder, build/package-windows.sh): a published
+    ShowTime keeps its own platform's only.
   -->
   <Target Name="KeepOnlyThisPlatformsWhisperRuntime" AfterTargets="Publish"
           Condition="'$(RuntimeIdentifier)' != '' And Exists('$(PublishDir)runtimes')">

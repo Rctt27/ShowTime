@@ -6,7 +6,7 @@ Outil de capture d'écran et d'enregistrement vidéo pour **Windows** et **macOS
 
 Les versions se téléchargent depuis la page [Releases](https://github.com/Rctt27/ShowTime/releases).
 
-**Windows 10 (2004) ou 11** : `ShowTime-x.y.z-windows-x64.zip`, à extraire dans un dossier, puis lancer `ShowTime.exe`. Gardez ensemble ce qu'il contient : `ShowTime.exe`, `ffmpeg.exe` (l'encodeur vidéo), le dossier `runtimes` (la bibliothèque de transcription) et le dossier `models` (le modèle de transcription). Rien d'autre à installer. Il nécessite le [runtime .NET 10](https://dotnet.microsoft.com/download/dotnet/10.0) (« .NET Desktop Runtime »).
+**Windows 10 (2004) ou 11** : `ShowTime-x.y.z-windows-x64.zip`, à extraire dans un dossier, puis lancer `ShowTime.exe`, seul programme à la racine. Le dossier `app` à côté contient ce dont il a besoin (`ffmpeg.exe`, l'encodeur vidéo ; `runtimes`, la bibliothèque de transcription ; `models`, le modèle de transcription ; les licences) : gardez-le à côté de `ShowTime.exe`. Rien d'autre à installer. Il nécessite le [runtime .NET 10](https://dotnet.microsoft.com/download/dotnet/10.0) (« .NET Desktop Runtime »).
 
 **macOS 14 (Sonoma) ou plus récent**, puce Apple ou Intel : `ShowTime-x.y.z-macos.zip`. Décompressez-le, glissez `ShowTime.app` dans Applications, puis ouvrez-le par **clic droit > Ouvrir** : l'app n'est pas signée par un développeur identifié, macOS le demande une fois (sinon : Réglages Système > Confidentialité et sécurité > « Ouvrir quand même »). ffmpeg et la transcription (whisper.cpp et son modèle) sont inclus dans l'app : rien d'autre à installer. L'icône de ShowTime se trouve dans la barre des menus. macOS demande ensuite deux autorisations, à accorder dans Réglages Système > Confidentialité et sécurité :
 - **Enregistrement de l'écran**, à la première capture ; ShowTime doit être relancé après l'avoir accordée ;
@@ -48,7 +48,7 @@ La vidéo s'ouvre ensuite dans un aperçu qui la lit aussitôt, avec l'image à 
 
 ### Sous-titres
 
-La bascule **Sous-titres** de la barre d'enregistrement fait transcrire le micro dès la fin de l'enregistrement. Sans elle, le bouton **Générer les sous-titres**, en haut de la fenêtre de lecture, le fait après coup : il apparaît tant que la vidéo n'a pas de sous-titres, et transcrit la piste du micro gardée pendant que la fenêtre est ouverte, ou à défaut le son de la vidéo. La transcription se fait sur l'ordinateur, avec le modèle [Whisper](https://github.com/ggerganov/whisper.cpp) livré avec ShowTime (dossier `models` sous Windows, dans l'app sur Mac) : rien n'est envoyé. Elle prend environ un tiers de la durée de la vidéo, et attend la fin d'un enregistrement en cours.
+La bascule **Sous-titres** de la barre d'enregistrement fait transcrire le micro dès la fin de l'enregistrement. Sans elle, le bouton **Générer les sous-titres**, en haut de la fenêtre de lecture, le fait après coup : il apparaît tant que la vidéo n'a pas de sous-titres, et transcrit la piste du micro gardée pendant que la fenêtre est ouverte, ou à défaut le son de la vidéo. La transcription se fait sur l'ordinateur, avec le modèle [Whisper](https://github.com/ggerganov/whisper.cpp) livré avec ShowTime (dossier `app\models` sous Windows, dans l'app sur Mac) : rien n'est envoyé. Elle prend environ un tiers de la durée de la vidéo, et attend la fin d'un enregistrement en cours.
 
 Les sous-titres sont découpés comme pour un tutoriel : une ligne de 42 caractères au plus (environ 5 à 7 mots), coupée à une fin de phrase, une virgule ou avant « et », « qui », « sur »…, jamais après un article, chaque bloc durant de 1 à 5 secondes ; un silence d'une demi-seconde termine un bloc. À côté des temps de chaque bloc, sa vitesse de lecture passe en orange au-delà de 15 caractères par seconde et en rouge au-delà de 17, avec l'explication en infobulle.
 
@@ -68,7 +68,7 @@ ffmpeg, qui encode les vidéos, est livré avec ShowTime (version épinglée ; S
 | --- | --- | --- |
 | Captures | `Images\ShowTime`, ou `%USERPROFILE%\Captures ShowTime` si le dossier Images est synchronisé par OneDrive | `~/Pictures/ShowTime` |
 | Sous-titres | à côté de chaque vidéo, même nom en `.srt` | à côté de chaque vidéo, même nom en `.srt` |
-| Modèle de transcription | `models` à côté de `ShowTime.exe`, sinon `%LOCALAPPDATA%\ShowTime\models` | dans l'app (`Contents/Resources/models`), sinon `~/Library/Application Support/ShowTime/models` |
+| Modèle de transcription | `app\models` à côté de `ShowTime.exe`, sinon `%LOCALAPPDATA%\ShowTime\models` | dans l'app (`Contents/Resources/models`), sinon `~/Library/Application Support/ShowTime/models` |
 | Piste du micro en attente de transcription | `%LOCALAPPDATA%\ShowTime\work`, effacée une fois transcrite | `~/Library/Caches/ShowTime`, effacée une fois transcrite |
 | Réglages | `%APPDATA%\ShowTime\settings.json` | `~/Library/Application Support/ShowTime/settings.json` |
 | Journal (7 jours) | `%LOCALAPPDATA%\ShowTime\logs` | `~/Library/Logs/ShowTime` |
