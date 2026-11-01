@@ -1,0 +1,10 @@
+ShowTime
+========
+
+Lancez ShowTime.exe. Son icône apparaît dans la zone de notification, à droite de la barre des tâches.
+
+Le dossier app contient ce dont ShowTime a besoin (ffmpeg pour la vidéo, le modèle de transcription,
+les licences). Gardez-le à côté de ShowTime.exe : si vous déplacez ShowTime, déplacez tout le dossier.
+
+ShowTime nécessite le runtime .NET 10 (« .NET Desktop Runtime ») :
+https://dotnet.microsoft.com/download/dotnet/10.0

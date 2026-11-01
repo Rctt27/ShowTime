@@ -65,7 +65,7 @@ public sealed class AppSettings
     /// <summary>Held during a recording to highlight with the mouse: a shortcut, a plain key, or XButton1/XButton2.</summary>
     public string HighlightTrigger { get; set; }
 
-    /// <summary>Empty: ffmpeg next to ShowTime, then on the PATH.</summary>
+    /// <summary>Empty: the ffmpeg shipped with ShowTime, then the one on the PATH.</summary>
     public string FfmpegPath { get; set; } = "";
 
     /// <summary>Audio input name as ffmpeg lists it; empty for the first microphone found.</summary>
@@ -83,7 +83,7 @@ public sealed class AppSettings
     /// <summary>A Whisper language code such as "fr", or "auto" to detect it.</summary>
     public string TranscriptionLanguage { get; set; } = "fr";
 
-    /// <summary>Empty: the model shipped in the models folder next to ShowTime.</summary>
+    /// <summary>Empty: the model shipped with ShowTime (in app\models next to ShowTime.exe on Windows).</summary>
     public string TranscriptionModelPath { get; set; } = "";
 
     public PixelRect? LastRegion { get; set; }

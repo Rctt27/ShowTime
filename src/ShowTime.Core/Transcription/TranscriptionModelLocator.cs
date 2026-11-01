@@ -3,8 +3,8 @@ using System.IO.Abstractions;
 namespace ShowTime.Core.Transcription;
 
 /// <summary>
-/// Finds the Whisper model (a ggml .bin file) on this computer. The release ships one in a models folder next to
-/// ShowTime; ShowTime never downloads one: that would be a network call.
+/// Finds the Whisper model (a ggml .bin file) on this computer. The release ships one in a models folder (app\models
+/// in the Windows zip); ShowTime never downloads one: that would be a network call.
 /// </summary>
 /// <param name="directories">Searched in order, after the configured path.</param>
 public sealed class TranscriptionModelLocator(IFileSystem fileSystem, IReadOnlyList<string> directories)

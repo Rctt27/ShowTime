@@ -100,7 +100,7 @@ public sealed class DiagnosticsReport(
             Check("transcription", () =>
             {
                 var model = models.Find(settings.TranscriptionModelPath)
-                            ?? throw new FileNotFoundException("no Whisper model: the release ships one in a models folder next to ShowTime");
+                            ?? throw new FileNotFoundException("no Whisper model: the release ships one (app\\models in the Windows zip, Contents/Resources/models in the macOS app)");
                 var error = (loadModel ?? WhisperTranscriber.CheckRuntime)(model);
                 return error is null
                     ? $"{model} ({new FileInfo(model).Length / (1024 * 1024)} MB), language {settings.TranscriptionLanguage}"

@@ -123,6 +123,8 @@ public partial class App : Application
         // Infrastructure
         services.AddSingleton<IAudioDeviceLister, FfmpegAudioDeviceLister>();
         services.AddSingleton<IVideoRecorderFactory, FfmpegVideoRecorderFactory>();
+        // The zip keeps runtimes\win-x64 in its app folder; a development build has it next to the exe.
+        WhisperTranscriber.LoadNativeLibrariesFrom(AppPaths.WindowsShippedFolder(AppContext.BaseDirectory));
         services.AddSingleton<ITranscriber, WhisperTranscriber>();
         services.AddSingleton<IAudioExtractor, FfmpegAudioExtractor>();
         services.AddSingleton<DiagnosticsReport>();
