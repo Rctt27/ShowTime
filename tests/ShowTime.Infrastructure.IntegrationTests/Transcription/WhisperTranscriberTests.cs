@@ -86,14 +86,13 @@ public sealed class WhisperTranscriberTests
     [Fact]
     public void A_model_that_is_not_one_is_reported()
     {
-        var notAModel = Path.GetTempFileName();
-        try
-        {
-            WhisperTranscriber.CheckRuntime(notAModel).ShouldNotBeNull();
-        }
-        finally
-        {
-            File.Delete(notAModel);
-        }
+        // Cleaned up by TempFolder, which tolerates a file still held: whisper.cpp opens the model through the C
+        // runtime, whose handles Windows lets a child inherit, so an ffmpeg started meanwhile by a test running in
+        // parallel can keep it open until it exits, and deleting it then failed the test.
+        using var folder = new TempFolder();
+        var notAModel = folder.File("not-a-model.bin");
+        File.WriteAllBytes(notAModel, []);
+
+        WhisperTranscriber.CheckRuntime(notAModel).ShouldNotBeNull();
     }
 }
