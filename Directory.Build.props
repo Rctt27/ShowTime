@@ -2,7 +2,7 @@
 
   <PropertyGroup>
     <!-- The only source of the version (Semantic Versioning, see CLAUDE.md). -->
-    <Version>0.5.1</Version>
+    <Version>0.5.2</Version>
     <Product>ShowTime</Product>
     <Authors>Rctt27</Authors>
     <Copyright>© Rctt27</Copyright>
