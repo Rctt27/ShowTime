@@ -22,6 +22,14 @@ public sealed class AvFoundationTests
 
     private static readonly PipedAudio Pipe = new("/tmp/lt.pcm", new RawAudioFormat("f32le", 48000, 2));
 
+    private static readonly PipedAudio MicPipe = new("/tmp/mic.pcm", new RawAudioFormat("f32le", 48000, 1));
+
+    private static readonly string[] MicPipeInput =
+        ["-f", "f32le", "-ar", "48000", "-ac", "1", "-thread_queue_size", "1024", "-probesize", "32", "-analyzeduration", "0", "-i", "/tmp/mic.pcm"];
+
+    private static readonly string[] SystemPipeInput =
+        ["-f", "f32le", "-ar", "48000", "-ac", "2", "-thread_queue_size", "1024", "-probesize", "32", "-analyzeduration", "0", "-i", "/tmp/lt.pcm"];
+
     private readonly AvFoundation _platform = new(() => Displays);
 
     [Fact]
@@ -47,29 +55,46 @@ public sealed class AvFoundationTests
     }
 
     [Fact]
-    public void The_microphone_is_opened_by_name()
+    public void The_microphone_is_read_from_its_pipe_after_the_screen()
     {
-        var inputs = _platform.BuildInputs(new PixelRect(0, 0, 100, 100), new VideoOptions(24, "MacBook Pro Microphone", false), null);
-        inputs.AudioInputs.ShouldBe([["-f", "avfoundation", "-thread_queue_size", "1024", "-i", ":MacBook Pro Microphone"]]);
+        // Deliberate change: ffmpeg's avfoundation keeps one 10 ms buffer of the microphone and loses the next ones
+        // whenever it reads late; ShowTime captures the microphone itself and pipes it, like the Mac's sound.
+        var inputs = _platform.BuildInputs(new PixelRect(0, 0, 100, 100), new VideoOptions(24, "MacBook Pro Microphone", false), null, MicPipe);
+
+        inputs.AudioInputs.ShouldBeEmpty();
+        inputs.TrailingAudioInputs.ShouldBe([MicPipeInput]);
+        inputs.MicrophoneTrails.ShouldBeTrue();
+        inputs.VideoInput.ShouldContain("-probesize");
+        inputs.TrailingAudioInputs!.SelectMany(a => a).ShouldNotContain(":MacBook Pro Microphone");
     }
+
+    [Fact]
+    public void The_microphone_comes_before_the_computer_sound()
+    {
+        var inputs = _platform.BuildInputs(new PixelRect(0, 0, 100, 100), new VideoOptions(30, "MacBook Pro Microphone", true), Pipe, MicPipe);
+        inputs.TrailingAudioInputs.ShouldBe([MicPipeInput, SystemPipeInput]);
+    }
+
+    [Fact]
+    public void The_microphone_needs_its_pipe() =>
+        Should.Throw<ArgumentException>(() =>
+            _platform.BuildInputs(new PixelRect(0, 0, 100, 100), new VideoOptions(30, "MacBook Pro Microphone", false), null));
 
     [Fact]
     public void The_computer_sound_is_read_from_the_pipe_after_the_screen()
     {
         // Deliberate change: ShowTime captures the Mac's sound itself and pipes it; BlackHole is no longer read.
-        var inputs = _platform.BuildInputs(new PixelRect(0, 0, 100, 100), new VideoOptions(30, "MacBook Pro Microphone", true), Pipe);
+        var inputs = _platform.BuildInputs(new PixelRect(0, 0, 100, 100), new VideoOptions(30, null, true), Pipe);
 
-        inputs.AudioInputs.ShouldBe([["-f", "avfoundation", "-thread_queue_size", "1024", "-i", ":MacBook Pro Microphone"]]);
-        inputs.TrailingAudioInputs.ShouldBe(
-        [
-            ["-f", "f32le", "-ar", "48000", "-ac", "2", "-thread_queue_size", "1024", "-probesize", "32", "-analyzeduration", "0", "-i", "/tmp/lt.pcm"]
-        ]);
+        inputs.AudioInputs.ShouldBeEmpty();
+        inputs.TrailingAudioInputs.ShouldBe([SystemPipeInput]);
+        inputs.MicrophoneTrails.ShouldBeFalse();
         inputs.VideoInput.ShouldBe(
         [
             "-f", "avfoundation", "-thread_queue_size", "1024", "-probesize", "32", "-analyzeduration", "0",
             "-capture_cursor", "1", "-framerate", "30", "-i", "Capture screen 0:none"
         ]);
-        inputs.AudioInputs.Concat(inputs.TrailingAudioInputs!).SelectMany(a => a).ShouldNotContain(":BlackHole 2ch");
+        inputs.TrailingAudioInputs!.SelectMany(a => a).ShouldNotContain(":BlackHole 2ch");
     }
 
     [Fact]

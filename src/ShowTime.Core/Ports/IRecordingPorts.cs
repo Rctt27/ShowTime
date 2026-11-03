@@ -80,11 +80,24 @@ public interface ISystemAudioSource
     /// Opens the default output and a pipe for ffmpeg. Capture starts when ffmpeg opens the pipe: sound captured
     /// before ffmpeg reads would come out ahead of the picture.
     /// </summary>
-    ISystemAudioCapture Start();
+    IAudioCapture Start();
 }
 
-/// <summary>The computer sound of one recording, written to a pipe until disposed.</summary>
-public interface ISystemAudioCapture : IDisposable
+/// <summary>
+/// The microphone, on a platform where ShowTime captures it itself instead of ffmpeg (macOS: ffmpeg's avfoundation
+/// keeps a single 10 ms buffer of it and loses the next ones whenever it reads late).
+/// </summary>
+public interface IMicrophoneSource
+{
+    /// <summary>
+    /// Opens <paramref name="microphone"/>, named as <see cref="Recording.IFfmpegPlatform.ParseDeviceList"/> names it,
+    /// and a pipe for ffmpeg. The sound written to the pipe starts when ffmpeg opens it.
+    /// </summary>
+    IAudioCapture Start(string microphone);
+}
+
+/// <summary>The sound of one recording, written to a pipe until disposed.</summary>
+public interface IAudioCapture : IDisposable
 {
     PipedAudio Input { get; }
 }

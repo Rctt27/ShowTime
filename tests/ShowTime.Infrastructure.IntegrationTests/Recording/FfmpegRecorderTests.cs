@@ -332,15 +332,18 @@ public sealed class FfmpegRecorderTests : IDisposable
 
         public PipedAudio? SystemAudio { get; private set; }
 
-        public CaptureInputs BuildInputs(PixelRect area, VideoOptions options, PipedAudio? systemAudio)
+        public PipedAudio? Microphone { get; private set; }
+
+        public CaptureInputs BuildInputs(PixelRect area, VideoOptions options, PipedAudio? systemAudio, PipedAudio? microphone = null)
         {
             Area = area;
             SystemAudio = systemAudio;
+            Microphone = microphone;
             return TestSources(audio: false);
         }
     }
 
-    private sealed class FakeCapture : ISystemAudioCapture
+    private sealed class FakeCapture : IAudioCapture
     {
         public PipedAudio Input { get; } = new(@"\\.\pipe\_none", new RawAudioFormat("f32le", 48000, 2));
 
@@ -355,7 +358,7 @@ public sealed class FfmpegRecorderTests : IDisposable
 
         public bool IsAvailable() => true;
 
-        public ISystemAudioCapture Start() => Capture = new FakeCapture();
+        public IAudioCapture Start() => Capture = new FakeCapture();
     }
 
     /// <summary>The ffmpeg end of a capture: a pipe that ffmpeg reads, fed with silence for a while or until the end.</summary>

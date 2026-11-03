@@ -15,7 +15,8 @@ public static class RecordingCommand
     public static IReadOnlyList<string> Build(CaptureInputs inputs, string outputPath, string? microphoneTrackPath = null)
     {
         ArgumentNullException.ThrowIfNull(inputs);
-        if (microphoneTrackPath is not null && inputs.AudioInputs.Count == 0)
+        var hasMicrophone = inputs.MicrophoneTrails ? inputs.TrailingAudioInputs is { Count: > 0 } : inputs.AudioInputs.Count > 0;
+        if (microphoneTrackPath is not null && !hasMicrophone)
             throw new ArgumentException("The microphone track needs a microphone.", nameof(microphoneTrackPath));
         // Each line tagged with its level: the info level announces when capture starts (CapturingLine).
         var args = new List<string> { "-hide_banner", "-loglevel", "level+info", "-nostats", "-y" };
@@ -64,9 +65,13 @@ public static class RecordingCommand
             args.AddRange(["-ac", "2"]);
         args.AddRange(["-movflags", "+faststart", outputPath]);
 
-        // The microphone is the first audio input on every platform; 16 kHz mono PCM is what Whisper reads.
+        // The microphone is the first audio stream on every platform, before or after the screen; 16 kHz mono PCM is
+        // what Whisper reads.
         if (microphoneTrackPath is not null)
-            args.AddRange(["-map", "0:a", .. AudioExtraction.WhisperFormat, microphoneTrackPath]);
+        {
+            var microphone = inputs.MicrophoneTrails ? videoInput + 1 : 0;
+            args.AddRange(["-map", $"{microphone}:a", .. AudioExtraction.WhisperFormat, microphoneTrackPath]);
+        }
         return args;
     }
 }
