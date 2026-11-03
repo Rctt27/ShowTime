@@ -271,6 +271,45 @@ public sealed class FfmpegRecorderTests : IDisposable
     }
 
     [Fact]
+    public async Task The_factory_pipes_the_microphone_of_its_source()
+    {
+        var ffmpeg = RequireFfmpeg();
+        var platform = new TestSourcePlatform();
+        var microphone = new FakeMicrophone();
+        var factory = new FfmpegVideoRecorderFactory(platform, microphone: microphone);
+        using var recorder = factory.Start(ffmpeg, new PixelRect(0, 0, 320, 240), _folder.File("mic.mp4"), new VideoOptions(30, "Mic A", false), _ => { });
+        microphone.Name.ShouldBe("Mic A");
+        platform.Microphone.ShouldBeSameAs(microphone.Capture!.Input);
+        (await recorder.Capturing.WaitAsync(TimeSpan.FromSeconds(15), TestContext.Current.CancellationToken)).ShouldBeTrue();
+        // A few frames first: a video stopped before its first frame is a failure.
+        await Task.Delay(500, TestContext.Current.CancellationToken);
+        (await recorder.StopAsync()).ShouldBeTrue();
+        microphone.Capture.Disposed.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void Without_a_microphone_the_factory_opens_none()
+    {
+        var microphone = new FakeMicrophone();
+        var factory = new FfmpegVideoRecorderFactory(new TestSourcePlatform(), microphone: microphone);
+        Should.Throw<Win32Exception>(() => factory.Start(_folder.File("not-ffmpeg.exe"), new PixelRect(0, 0, 320, 240),
+            _folder.File("x.mp4"), new VideoOptions(30, null, false), _ => { }));
+        microphone.Capture.ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_failed_launch_frees_the_microphone_and_the_computer_sound()
+    {
+        var source = new FakeSource();
+        var microphone = new FakeMicrophone();
+        var factory = new FfmpegVideoRecorderFactory(new TestSourcePlatform(), source, microphone);
+        Should.Throw<Win32Exception>(() => factory.Start(_folder.File("not-ffmpeg.exe"), new PixelRect(0, 0, 320, 240),
+            _folder.File("x.mp4"), new VideoOptions(30, "Mic A", true), _ => { }));
+        microphone.Capture!.Disposed.ShouldBeTrue();
+        source.Capture!.Disposed.ShouldBeTrue();
+    }
+
+    [Fact]
     public async Task The_audio_device_lister_returns_an_empty_list_when_ffmpeg_cannot_run()
     {
         var lister = new FfmpegAudioDeviceLister(new DirectShowGdigrab(() => true));
@@ -332,15 +371,18 @@ public sealed class FfmpegRecorderTests : IDisposable
 
         public PipedAudio? SystemAudio { get; private set; }
 
-        public CaptureInputs BuildInputs(PixelRect area, VideoOptions options, PipedAudio? systemAudio)
+        public PipedAudio? Microphone { get; private set; }
+
+        public CaptureInputs BuildInputs(PixelRect area, VideoOptions options, PipedAudio? systemAudio, PipedAudio? microphone = null)
         {
             Area = area;
             SystemAudio = systemAudio;
+            Microphone = microphone;
             return TestSources(audio: false);
         }
     }
 
-    private sealed class FakeCapture : ISystemAudioCapture
+    private sealed class FakeCapture : IAudioCapture
     {
         public PipedAudio Input { get; } = new(@"\\.\pipe\_none", new RawAudioFormat("f32le", 48000, 2));
 
@@ -355,7 +397,20 @@ public sealed class FfmpegRecorderTests : IDisposable
 
         public bool IsAvailable() => true;
 
-        public ISystemAudioCapture Start() => Capture = new FakeCapture();
+        public IAudioCapture Start() => Capture = new FakeCapture();
+    }
+
+    private sealed class FakeMicrophone : IMicrophoneSource
+    {
+        public string? Name { get; private set; }
+
+        public FakeCapture? Capture { get; private set; }
+
+        public IAudioCapture Start(string microphone)
+        {
+            Name = microphone;
+            return Capture = new FakeCapture();
+        }
     }
 
     /// <summary>The ffmpeg end of a capture: a pipe that ffmpeg reads, fed with silence for a while or until the end.</summary>

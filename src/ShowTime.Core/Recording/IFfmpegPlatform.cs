@@ -28,5 +28,6 @@ public interface IFfmpegPlatform
 
     /// <param name="area">Physical screen pixels, with even dimensions.</param>
     /// <param name="systemAudio">The pipe carrying the computer sound, on a platform that captures it itself.</param>
-    CaptureInputs BuildInputs(PixelRect area, VideoOptions options, PipedAudio? systemAudio);
+    /// <param name="microphone">The pipe carrying the microphone, on a platform that captures it itself (macOS).</param>
+    CaptureInputs BuildInputs(PixelRect area, VideoOptions options, PipedAudio? systemAudio, PipedAudio? microphone = null);
 }

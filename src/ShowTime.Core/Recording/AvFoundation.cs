@@ -5,9 +5,11 @@ using ShowTime.Core.Geometry;
 namespace ShowTime.Core.Recording;
 
 /// <summary>
-/// macOS: AVFoundation for the screen and the microphone; the Mac's sound comes from ShowTime's own capture
-/// (ScreenCaptureKit) through a pipe, as on Windows. AVFoundation records a whole display, so the area is cut out of
-/// it with a crop filter; an area across two displays keeps the part on the display holding most of it.
+/// macOS: AVFoundation for the screen; the microphone and the Mac's sound come from ShowTime's own captures through
+/// pipes opened after the screen. ffmpeg's avfoundation keeps a single 10 ms buffer of the microphone, overwritten
+/// whenever ffmpeg reads late: one recording kept 9.8 s of a 23 s talk, which then played too fast. AVFoundation
+/// records a whole display, so the area is cut out of it with a crop filter; an area across two displays keeps the
+/// part on the display holding most of it.
 /// </summary>
 /// <param name="displays">The displays in AVFoundation's order ("Capture screen 0", 1…), in physical pixels.</param>
 public sealed partial class AvFoundation(Func<IReadOnlyList<PixelRect>> displays) : IFfmpegPlatform
@@ -45,16 +47,20 @@ public sealed partial class AvFoundation(Func<IReadOnlyList<PixelRect>> displays
     /// <summary>Always: ScreenCaptureKit captures the Mac's sound on every macOS ShowTime runs on.</summary>
     public bool CanRecordSystemAudio(IReadOnlyCollection<string> devices) => true;
 
-    public CaptureInputs BuildInputs(PixelRect area, VideoOptions options, PipedAudio? systemAudio)
+    public CaptureInputs BuildInputs(PixelRect area, VideoOptions options, PipedAudio? systemAudio, PipedAudio? microphone = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         if (options.SystemAudio && systemAudio is null)
             throw new ArgumentException("The computer sound is read from a pipe.", nameof(systemAudio));
-        var piped = options.SystemAudio ? systemAudio : null;
-
-        var audio = new List<IReadOnlyList<string>>();
-        if (!string.IsNullOrEmpty(options.Microphone))
-            audio.Add(AudioInput(options.Microphone));
+        var recordsMicrophone = !string.IsNullOrEmpty(options.Microphone);
+        if (recordsMicrophone && microphone is null)
+            throw new ArgumentException("The microphone is read from a pipe.", nameof(microphone));
+        // The microphone first: it is the first stream of the mix and the transcription's track.
+        var pipes = new List<PipedAudio>();
+        if (recordsMicrophone)
+            pipes.Add(microphone!);
+        if (options.SystemAudio)
+            pipes.Add(systemAudio!);
 
         var all = displays();
         var index = 0;
@@ -73,24 +79,28 @@ public sealed partial class AvFoundation(Func<IReadOnlyList<PixelRect>> displays
         // then, and the sound would come out ahead of the picture.
         string[] video =
         [
-            "-f", "avfoundation", "-thread_queue_size", "1024", .. piped is null ? [] : NoProbe, "-capture_cursor", "1",
+            "-f", "avfoundation", "-thread_queue_size", "1024", .. pipes.Count == 0 ? [] : NoProbe, "-capture_cursor", "1",
             "-framerate", options.FrameRate.ToString(culture), "-i", $"Capture screen {index.ToString(culture)}:none"
         ];
         var filter = string.Create(culture, $"crop={crop.Width}:{crop.Height}:{crop.X - display.X}:{crop.Y - display.Y}");
-        if (piped is not { Format: var format })
-            return new CaptureInputs(audio, video, filter);
-        // After the screen, so that the sound starts with the first frame; its format is declared, nothing to probe.
-        string[] pipe =
-        [
-            "-f", format.SampleFormat, "-ar", format.SampleRate.ToString(culture), "-ac", format.Channels.ToString(culture),
-            "-thread_queue_size", "1024", .. NoProbe, "-i", piped.PipePath
-        ];
-        return new CaptureInputs(audio, video, filter, TrailingAudioInputs: [pipe]);
+        if (pipes.Count == 0)
+            return new CaptureInputs([], video, filter);
+        // After the screen, so that the sound starts with the first frame.
+        return new CaptureInputs([], video, filter, TrailingAudioInputs: [.. pipes.Select(PipeInput)], MicrophoneTrails: recordsMicrophone);
     }
 
     private static readonly string[] NoProbe = ["-probesize", "32", "-analyzeduration", "0"];
 
-    private static string[] AudioInput(string device) => ["-f", "avfoundation", "-thread_queue_size", "1024", "-i", ":" + device];
+    /// <summary>A pipe's format is declared: there is nothing to probe.</summary>
+    private static string[] PipeInput(PipedAudio pipe)
+    {
+        var culture = CultureInfo.InvariantCulture;
+        return
+        [
+            "-f", pipe.Format.SampleFormat, "-ar", pipe.Format.SampleRate.ToString(culture), "-ac", pipe.Format.Channels.ToString(culture),
+            "-thread_queue_size", "1024", .. NoProbe, "-i", pipe.PipePath
+        ];
+    }
 
     [GeneratedRegex(@"\] \[\d+\] (.+)$")]
     private static partial Regex DeviceLine();

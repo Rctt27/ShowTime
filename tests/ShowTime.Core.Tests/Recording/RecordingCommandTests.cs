@@ -79,6 +79,18 @@ public sealed class RecordingCommandTests
     }
 
     [Fact]
+    public void A_trailing_microphone_is_the_track_and_the_first_in_the_mix()
+    {
+        // macOS: the microphone and the Mac's sound are both pipes opened after the screen, the microphone first.
+        var inputs = new CaptureInputs([], ["-i", "screen"], TrailingAudioInputs: [["-i", "mic"], ["-i", "late"]], MicrophoneTrails: true);
+
+        var args = RecordingCommand.Build(inputs, "out.mp4", "mic.wav").ToList();
+
+        args[args.IndexOf("-filter_complex") + 1].ShouldStartWith("[1:a][2:a]amix");
+        args.TakeLast(9).ShouldBe(["-map", "1:a", "-ac", "1", "-ar", "16000", "-c:a", "pcm_s16le", "mic.wav"]);
+    }
+
+    [Fact]
     public void A_microphone_track_needs_a_microphone()
     {
         Should.Throw<ArgumentException>(() =>

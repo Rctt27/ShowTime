@@ -29,7 +29,7 @@ public sealed class WasapiSystemAudio : ISystemAudioSource
         }
     }
 
-    public ISystemAudioCapture Start()
+    public IAudioCapture Start()
     {
         try
         {
@@ -44,7 +44,7 @@ public sealed class WasapiSystemAudio : ISystemAudioSource
     }
 }
 
-internal sealed class WasapiSystemAudioCapture : ISystemAudioCapture
+internal sealed class WasapiSystemAudioCapture : IAudioCapture
 {
     private readonly MMDevice _device;
     private readonly WasapiLoopbackCapture _capture;

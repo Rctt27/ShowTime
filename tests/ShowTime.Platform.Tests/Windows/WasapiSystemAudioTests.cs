@@ -15,7 +15,7 @@ public sealed class WasapiSystemAudioTests
     public WasapiSystemAudioTests() =>
         Assert.SkipUnless(OperatingSystem.IsWindows() && _source.IsAvailable(), "Needs Windows and an audio output.");
 
-    private static NamedPipeClientStream Connect(ISystemAudioCapture capture) =>
+    private static NamedPipeClientStream Connect(IAudioCapture capture) =>
         new(".", capture.Input.PipePath[@"\\.\pipe\".Length..], PipeDirection.In);
 
     [Fact]
@@ -67,7 +67,7 @@ public sealed class WasapiSystemAudioTests
         // NAudio raises RecordingStopped through the SynchronizationContext it was created on: on the WPF thread, the
         // silence after a lost output would only start once that thread is free.
         var context = new CountingContext();
-        ISystemAudioCapture? capture = null;
+        IAudioCapture? capture = null;
         var thread = new Thread(() =>
         {
             SynchronizationContext.SetSynchronizationContext(context);

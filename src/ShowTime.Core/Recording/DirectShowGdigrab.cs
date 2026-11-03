@@ -50,7 +50,8 @@ public sealed partial class DirectShowGdigrab(Func<bool> hasAudioOutput) : IFfmp
 
     public bool CanRecordSystemAudio(IReadOnlyCollection<string> devices) => hasAudioOutput();
 
-    public CaptureInputs BuildInputs(PixelRect area, VideoOptions options, PipedAudio? systemAudio)
+    /// <param name="microphone">Unused: ffmpeg records the microphone, DirectShow buffering it.</param>
+    public CaptureInputs BuildInputs(PixelRect area, VideoOptions options, PipedAudio? systemAudio, PipedAudio? microphone = null)
     {
         ArgumentNullException.ThrowIfNull(options);
         if (options.SystemAudio && systemAudio is null)

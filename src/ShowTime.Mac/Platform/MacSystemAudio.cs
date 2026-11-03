@@ -19,7 +19,7 @@ internal sealed class MacSystemAudio(ILogger<MacSystemAudio> log) : ISystemAudio
     /// <summary>ScreenCaptureKit captures audio from macOS 13; ShowTime needs 14.</summary>
     public bool IsAvailable() => true;
 
-    public ISystemAudioCapture Start() => new MacSystemAudioCapture(log);
+    public IAudioCapture Start() => new MacSystemAudioCapture(log);
 }
 
 /// <summary>
@@ -27,7 +27,7 @@ internal sealed class MacSystemAudio(ILogger<MacSystemAudio> log) : ISystemAudio
 /// in it (permission withdrawn, a native callback throwing), the pipe goes on with silence: the video is recorded, with
 /// the Mac's sound muted, rather than the app stopping mid-recording with an unplayable file.
 /// </summary>
-internal sealed class MacSystemAudioCapture : ISystemAudioCapture
+internal sealed class MacSystemAudioCapture : IAudioCapture
 {
     /// <summary>The format asked of ScreenCaptureKit and declared to ffmpeg.</summary>
     private static readonly RawAudioFormat Format = new("f32le", 48000, 2);
