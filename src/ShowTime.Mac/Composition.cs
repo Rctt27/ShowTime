@@ -67,8 +67,9 @@ internal static class Composition
         // Infrastructure
         services.AddSingleton<IAudioDeviceLister, FfmpegAudioDeviceLister>();
         services.AddSingleton<IVideoRecorderFactory, FfmpegVideoRecorderFactory>();
-        // The Mac's sound, captured by ShowTime itself and piped to ffmpeg.
+        // The Mac's sound and the microphone, captured by ShowTime itself and piped to ffmpeg.
         services.AddSingleton<ISystemAudioSource, MacSystemAudio>();
+        services.AddSingleton<IMicrophoneSource, MacMicrophone>();
         services.AddSingleton<ITranscriber, WhisperTranscriber>();
         services.AddSingleton<IAudioExtractor, FfmpegAudioExtractor>();
         services.AddSingleton<DiagnosticsReport>();

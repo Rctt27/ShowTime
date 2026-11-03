@@ -171,7 +171,7 @@ internal sealed class StatusMenu : IDisposable
             _dialogs.ShowWarning(MacScreenGrabber.PermissionMessage);
             return;
         }
-        // ffmpeg records the microphone on ShowTime's behalf: macOS asks ShowTime, once, before the first video.
+        // ShowTime records the microphone itself: macOS asks, once, before the first video.
         if (!_video.IsBusy && _settings.RecordMicrophone &&
             AVCaptureDevice.GetAuthorizationStatus(AVAuthorizationMediaType.Audio) == AVAuthorizationStatus.NotDetermined)
             await AVCaptureDevice.RequestAccessForMediaTypeAsync(AVAuthorizationMediaType.Audio).ConfigureAwait(true);
