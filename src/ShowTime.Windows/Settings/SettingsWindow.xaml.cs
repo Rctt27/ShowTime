@@ -26,6 +26,7 @@ public partial class SettingsWindow : Window
 {
     private readonly AppSettings _settings;
     private readonly SettingsContext _context;
+    private HighlightStyle _highlightStyle;
 
     internal SettingsWindow(SettingsContext context)
     {
@@ -63,6 +64,7 @@ public partial class SettingsWindow : Window
         HighlightTriggerBox.PreviewMouseDown += HighlightTriggerBox_PreviewMouseDown;
         HighlightTriggerBox.TextChanged += (_, _) => UpdateHighlightWarning();
         UpdateHighlightWarning();
+        _highlightStyle = settings.HighlightStyle;
 
         StartupBox.IsChecked = _context.Startup.IsEnabled;
         UpdateQualityState();
@@ -274,7 +276,7 @@ public partial class SettingsWindow : Window
             HotkeyVideoRegionBox.Text, HotkeyVideoFullScreenBox.Text, HotkeyVideoStartBox.Text, HotkeyVideoStopBox.Text,
             HighlightTriggerBox.Text, FfmpegBox.Text, (MicrophoneBox.SelectedItem as ComboBoxItem)?.Tag as string ?? _settings.Microphone,
             RecordMicrophoneBox.IsChecked == true, SystemAudioBox.IsChecked == true, (int)FrameRateBox.SelectedItem,
-            TranscribeBox.IsChecked == true, LanguageBox.SelectedValue as string ?? "fr", ModelBox.Text);
+            TranscribeBox.IsChecked == true, LanguageBox.SelectedValue as string ?? "fr", ModelBox.Text, _highlightStyle);
         if (_context.Editor.TryApply(form) is { } problem)
         {
             MessageBox.Show(this, problem, "ShowTime", MessageBoxButton.OK, MessageBoxImage.Warning);

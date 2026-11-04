@@ -55,6 +55,7 @@ internal sealed class SettingsWindowController : NSWindowController
     private readonly HotkeyField _highlightTrigger;
     private readonly NSTextField _highlightWarning = Help("Pendant l'enregistrement, cette touche n'écrira plus rien dans les applications.");
     private readonly NSButton _startup = NSButton.CreateCheckbox("Lancer ShowTime à l'ouverture de session", () => { });
+    private readonly HighlightStyle _highlightStyle;
     private int _audioLoadGeneration;
 
     public SettingsWindowController(SettingsContext context) : base(CreateWindow())
@@ -100,6 +101,7 @@ internal sealed class SettingsWindowController : NSWindowController
         _highlightTrigger = new HotkeyField(settings.HighlightTrigger) { AllowPlainKey = true };
         _highlightTrigger.ShortcutChanged += (_, _) => UpdateHighlightWarning();
         UpdateHighlightWarning();
+        _highlightStyle = settings.HighlightStyle;
         _startup.State = context.Startup.IsEnabled ? NSCellStateValue.On : NSCellStateValue.Off;
 
         var window = Window!;
@@ -366,7 +368,8 @@ internal sealed class SettingsWindowController : NSWindowController
             _recordMicrophone.State == NSCellStateValue.On, _systemAudio.State == NSCellStateValue.On,
             SettingsForm.FrameRates[(int)Math.Max(0, _frameRate.IndexOfSelectedItem)],
             _transcribe.State == NSCellStateValue.On,
-            SettingsForm.TranscriptionLanguages[(int)Math.Max(0, _language.IndexOfSelectedItem)].Code, _model.StringValue);
+            SettingsForm.TranscriptionLanguages[(int)Math.Max(0, _language.IndexOfSelectedItem)].Code, _model.StringValue,
+            _highlightStyle);
         if (_context.Editor.TryApply(form) is { } problem)
         {
             MacDialogs.Show(problem, NSAlertStyle.Warning);

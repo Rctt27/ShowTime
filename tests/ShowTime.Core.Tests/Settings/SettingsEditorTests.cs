@@ -43,6 +43,17 @@ public sealed class SettingsEditorTests
     }
 
     [Fact]
+    public void From_and_ApplyTo_carry_the_highlight_style_clamped()
+    {
+        _settings.HighlightStyle = HighlightStyle.Default with { Thickness = 12 };
+        SettingsForm.From(_settings).HighlightStyle.Thickness.ShouldBe(12);
+
+        var copy = new AppSettings(SettingsDefaults.ForWindows(Folder));
+        (Form() with { HighlightStyle = HighlightStyle.Default with { Opacity = 3 } }).ApplyTo(copy);
+        copy.HighlightStyle.Opacity.ShouldBe(1);
+    }
+
+    [Fact]
     public void A_valid_form_is_trimmed_applied_and_saved()
     {
         var form = Form() with { FileNamePattern = "  Shot_%NUM%  ", HotkeyRegion = " Ctrl+1 ", OutputFolder = "  " + Folder + "  " };

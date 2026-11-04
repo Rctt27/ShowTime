@@ -87,8 +87,29 @@ public sealed class JsonSettingsStoreTests : IDisposable
         var legacy = KeysOf(File.ReadAllText(Path.Combine(Fixtures, "settings-v0.1.0-defaults.json")));
         // Deliberate change: the transcription's three settings are new keys, which v0.1.0 files simply lack.
         // Deliberate change: the highlight trigger is a new key, which older files simply lack.
-        written.ShouldBe([.. legacy, "SchemaVersion", "TranscribeMicrophone", "TranscriptionLanguage", "TranscriptionModelPath", "HighlightTrigger"],
-            ignoreOrder: true);
+        // Deliberate change: the highlight style is a new key, which older files simply lack.
+        written.ShouldBe([.. legacy, "SchemaVersion", "TranscribeMicrophone", "TranscriptionLanguage", "TranscriptionModelPath", "HighlightTrigger",
+            "HighlightStyle"], ignoreOrder: true);
+    }
+
+    [Fact]
+    public void The_highlight_style_survives_a_round_trip()
+    {
+        var settings = _store.Load();
+        settings.HighlightStyle = HighlightStyle.Default with { Thickness = 12.5, Opacity = 0.6 };
+        _store.Save(settings);
+
+        _store.Load().HighlightStyle.ShouldBe(HighlightStyle.Default with { Thickness = 12.5, Opacity = 0.6 });
+    }
+
+    [Fact]
+    public void A_file_without_the_highlight_style_or_with_part_of_it_keeps_the_defaults()
+    {
+        Write("""{ "Counter": 5 }""");
+        _store.Load().HighlightStyle.ShouldBe(HighlightStyle.Default);
+
+        Write("""{ "HighlightStyle": { "Thickness": 12 } }""");
+        _store.Load().HighlightStyle.ShouldBe(HighlightStyle.Default with { Thickness = 12 });
     }
 
     [Fact]
