@@ -89,6 +89,7 @@ Avec le zip de la release, ou l'artefact `ShowTime-windows` de la CI (`build/pac
 
 ### Réglages
 
+- [ ] Sur un écran peu haut (ou à 150 % et plus), la fenêtre ne dépasse pas de l'écran et défile jusqu'à « Lancer ShowTime au démarrage de Windows » et aux boutons.
 - [ ] Saisie des raccourcis (dont `Impr. écran`), « Raccourcis par défaut », doublon refusé avec un message (y compris le surlignage identique à Démarrer).
 - [ ] Dossier relatif refusé ; « Parcourir… » pour le dossier et ffmpeg ; un chemin ffmpeg inexistant est refusé.
 - [ ] Sous-titres : le modèle livré est affiché ; un modèle inexistant est refusé ; la langue est retenue.
@@ -216,6 +217,7 @@ Avec l'artefact `ShowTime-macos` ou la release : le modèle est dans l'app, rien
 ### Étape 7 : réglages
 
 - [ ] « Réglages… » ouvre la fenêtre ; pendant qu'elle est ouverte, les raccourcis de ShowTime ne déclenchent pas de capture.
+- [ ] Sur un écran peu haut (un MacBook sans écran externe), la fenêtre ne dépasse pas de l'écran : elle défile (molette, trackpad) jusqu'à « Lancer ShowTime à l'ouverture de session » et aux boutons, s'agrandit en hauteur jusqu'à tout montrer, et garde sa largeur.
 - [ ] Saisie d'un raccourci avec `Cmd` et `Option` : le champ affiche par exemple `Ctrl+Option+Cmd+K` ; `⌫` le vide ; `Tab` passe au champ suivant.
 - [ ] Un raccourci attribué deux fois est refusé avec un message ; un dossier relatif (`Captures`) aussi.
 - [ ] « Parcourir… » pour le dossier et pour ffmpeg ; le statut d'ffmpeg dit « Détecté : … » quand le champ est vide.
