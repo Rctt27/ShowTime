@@ -14,7 +14,8 @@ namespace ShowTime.Mac.Settings;
 /// <summary>What the settings window needs from the rest of the app.</summary>
 internal sealed record SettingsContext(
     AppSettings Settings, SettingsDefaults Defaults, FfmpegLocator Locator, IFfmpegPlatform Platform,
-    IAudioDeviceLister AudioDevices, IStartupRegistration Startup, SettingsEditor Editor, TranscriptionModelLocator Models);
+    IAudioDeviceLister AudioDevices, IStartupRegistration Startup, SettingsEditor Editor, TranscriptionModelLocator Models,
+    IHighlightOverlayFactory Overlays, IUiThread UiThread, TimeProvider Clock, IRecordingStatus Recording);
 
 /// <summary>
 /// The settings, the same fields as on Windows. The checks and the saving are <see cref="SettingsEditor"/>'s; the
@@ -55,6 +56,8 @@ internal sealed class SettingsWindowController : NSWindowController
     private readonly HotkeyField _highlightTrigger;
     private readonly NSTextField _highlightWarning = Help("Pendant l'enregistrement, cette touche n'écrira plus rien dans les applications.");
     private readonly NSButton _startup = NSButton.CreateCheckbox("Lancer ShowTime à l'ouverture de session", () => { });
+    private readonly NSButton _highlightStyleButton;
+    private HighlightStyle _highlightStyle;
     private int _audioLoadGeneration;
 
     public SettingsWindowController(SettingsContext context) : base(CreateWindow())
@@ -100,6 +103,10 @@ internal sealed class SettingsWindowController : NSWindowController
         _highlightTrigger = new HotkeyField(settings.HighlightTrigger) { AllowPlainKey = true };
         _highlightTrigger.ShortcutChanged += (_, _) => UpdateHighlightWarning();
         UpdateHighlightWarning();
+        _highlightStyle = settings.HighlightStyle;
+        _highlightStyleButton = NSButton.CreateButton("Personnaliser le trait…", EditHighlightStyle);
+        // Its preview draws over the screen like a recording: not while one is under way.
+        _highlightStyleButton.Enabled = !context.Recording.IsBusy;
         _startup.State = context.Startup.IsEnabled ? NSCellStateValue.On : NSCellStateValue.Off;
 
         var window = Window!;
@@ -177,6 +184,7 @@ internal sealed class SettingsWindowController : NSWindowController
         rows.AddRange(hotkeyTitles.Select((title, i) => Row(title, _hotkeys[i])));
         rows.Add(Row("Surligner (maintenir)", _highlightTrigger));
         rows.Add(Row("", _highlightWarning));
+        rows.Add(Row("", _highlightStyleButton));
         rows.Add(Row("", NSButton.CreateButton("Raccourcis par défaut", DefaultHotkeys)));
         rows.Add(Row("", Help("Cliquez dans un champ puis appuyez sur la combinaison. ⌫ : aucun raccourci. " +
             "Démarrer, Arrêter et Surligner ne sont actifs que pendant une vidéo ; Surligner se maintient au clavier.")));
@@ -351,6 +359,22 @@ internal sealed class SettingsWindowController : NSWindowController
         UpdateHighlightWarning();
     }
 
+    private void EditHighlightStyle()
+    {
+        var editor = new HighlightStyleWindowController(_highlightStyle, _context.Defaults, _context.Overlays, _context.UiThread, _context.Clock);
+        Window!.BeginSheet(editor.Window!, _ =>
+        {
+            if (editor.Accepted)
+                _highlightStyle = editor.Chosen;
+            // The sheet ends from its own button's action: release it once that action has returned.
+            _context.UiThread.Post(() =>
+            {
+                editor.Close();
+                editor.Dispose();
+            });
+        });
+    }
+
     private void UpdateHighlightWarning() =>
         _highlightWarning.Hidden = !(HighlightTrigger.TryParse(_highlightTrigger.Shortcut, out var trigger) && trigger.BlocksTyping);
 
@@ -366,7 +390,8 @@ internal sealed class SettingsWindowController : NSWindowController
             _recordMicrophone.State == NSCellStateValue.On, _systemAudio.State == NSCellStateValue.On,
             SettingsForm.FrameRates[(int)Math.Max(0, _frameRate.IndexOfSelectedItem)],
             _transcribe.State == NSCellStateValue.On,
-            SettingsForm.TranscriptionLanguages[(int)Math.Max(0, _language.IndexOfSelectedItem)].Code, _model.StringValue);
+            SettingsForm.TranscriptionLanguages[(int)Math.Max(0, _language.IndexOfSelectedItem)].Code, _model.StringValue,
+            _highlightStyle);
         if (_context.Editor.TryApply(form) is { } problem)
         {
             MacDialogs.Show(problem, NSAlertStyle.Warning);

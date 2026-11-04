@@ -57,10 +57,12 @@ Avec l'exe publié (`dotnet publish src/ShowTime.Windows -c Release -r win-x64 -
 - [ ] « Refaire » : la vidéo part dans la Corbeille et un nouvel enregistrement commence.
 - [ ] « Annuler » pendant l'enregistrement : aucun fichier ne reste.
 - [ ] Pendant l'enregistrement, la barre montre « Surligner : maintenir Ctrl+Space ». Maintenir `Ctrl+Espace` en survolant un bouton : une traînée jaune translucide suit la souris, rien n'est tapé dans l'application ; au relâchement, elle reste 0,3 s puis s'estompe en une demi-seconde environ ; un texte surligné reste lisible.
+- [ ] Le trait : lent, il est large ; rapide, il s'affine ; un cercle tracé autour d'un bouton est fluide, sans angles ; ses bords sont lisses, sans frange rose ; là où il se croise, il ne fonce pas ; il commence fin et s'affine au relâchement.
 - [ ] Lâcher `Ctrl` avant `Espace` compte comme un relâchement : la traînée reste 0,3 s puis s'estompe, comme en lâchant `Espace`. `Espace` seul tape un espace dans un formulaire de la démo.
 - [ ] Pendant le compte à rebours et après « Arrêter », `Ctrl+Espace` ne surligne pas.
-- [ ] Dans le MP4 : la traînée est visible et son fondu fluide (`ffmpeg -i video.mp4 -vf fps=10 images/%03d.png`).
+- [ ] Dans le MP4 : la traînée est visible, ses largeurs et son fondu aussi (`ffmpeg -i video.mp4 -vf fps=10 images/%03d.png`).
 - [ ] Deux écrans et 150 % : la traînée est sous la souris, de la même épaisseur apparente ; hors de la zone, rien ne s'affiche.
+- [ ] Réglages › « Personnaliser le trait… » : maintenir le bouton gauche dans la zone trace comme pendant un enregistrement, sur la moitié claire et la sombre ; bouger un curseur pendant le tracé change le trait aussitôt ; « Valeurs par défaut » remet les valeurs ; « Annuler » ne change rien ; « OK » puis « Enregistrer » : l'enregistrement suivant porte ce trait, et il est retenu au prochain lancement. Pendant un enregistrement, le bouton est grisé.
 - [ ] Réglages : un bouton latéral de souris cliqué dans « Surligner (maintenir) » donne `XButton1`/`XButton2` ; en enregistrement, il surligne et un navigateur ne fait pas « Précédent ». `Espace` seul est accepté, avec l'avertissement sous le champ.
 
 ### Sous-titres
@@ -167,6 +169,8 @@ Le réglage « Après une capture » revient à « Ouvrir dans l'éditeur » (`"
 - [ ] Le cadre rouge et la barre n'apparaissent pas dans la vidéo.
 - [ ] Surlignage : pendant l'enregistrement (pas avant ni après), la barre montre « Surligner : maintenir Option+Space ». Maintenir `Option+Espace` en survolant un bouton : une traînée jaune translucide suit la souris, rien n'est tapé dans l'application ; au relâchement, elle reste 0,3 s puis s'estompe. Relâcher Option avant Espace compte comme un relâchement : même pause puis même fondu.
 - [ ] Dans le MP4 : la traînée et son fondu sont visibles ; avec deux écrans d'échelles différentes, la traînée est sous la souris sur l'écran enregistré.
+- [ ] Le trait : lent large, rapide fin, un cercle fluide, des bords lisses, pas plus foncé là où il se croise.
+- [ ] Réglages › « Personnaliser le trait… » s'ouvre en feuille : tracer dans la zone dessine le trait (il s'anime et s'estompe), un curseur le change aussitôt, « Valeurs par défaut », « Annuler » et « OK » puis « Enregistrer » font ce qu'ils disent. Pendant un enregistrement, le bouton est grisé.
 - [ ] Réglages : le champ « Surligner (maintenir) » prend une autre combinaison, accepte `Espace` seul (avec l'avertissement), et « Raccourcis par défaut » remet `Option+Space`.
 - [ ] « Enregistrer une vidéo (tout l'écran) » dans le menu ; puis, avec un second écran, une vidéo d'une zone sur le second écran : c'est bien cet écran qui est filmé.
 - [ ] `Ctrl+Maj+R` démarre (compte à rebours 3, 2, 1), `Ctrl+Maj+D` arrête ; « Annuler » n'enregistre rien.
@@ -194,6 +198,20 @@ Avec l'artefact `ShowTime-macos` ou la release : le modèle est dans l'app, rien
 - [ ] « Supprimer » ou « Refaire » pendant la transcription : la vidéo et le `.srt` partent à la Corbeille, la transcription s'arrête.
 - [ ] Ne rien dire : « Aucune parole détectée », pas de `.srt`.
 - [ ] Quitter ShowTime pendant une transcription, le relancer : `~/Library/Caches/ShowTime` est vidé de ses `.wav`.
+- [ ] Enregistrer 30 s en parlant, puis « Supprimer » pendant que le panneau affiche « Transcription du micro… » : ShowTime ne se bloque pas, et le journal dit « Video … sent to the Trash » puis « Transcription of … canceled ».
+
+### Étape 6 bis : ShowTime bloquée
+
+`--test-hang` bloque ShowTime pendant une minute, 15 s après son lancement : le temps d'ouvrir son menu ou de démarrer un enregistrement.
+
+- [ ] ShowTime fermée : `open -a ShowTime --args --test-hang`, puis cliquer dans une autre application. Environ 25 s après le lancement, une fenêtre « ShowTime ne répond plus » apparaît devant les autres, et le clavier y agit (`Entrée` choisit « Attendre »).
+- [ ] Comme le 4 novembre : `open -a ShowTime --args --test-hang`, ouvrir le menu de ShowTime avant 15 s et le laisser ouvert. Le blocage le fige (curseur qui tourne) ; la fenêtre apparaît quand même au-dessus, prend le clavier et se clique. Si elle n'apparaît pas ou ne prend pas le clavier, le noter : c'est le cas à traiter autrement.
+- [ ] « Attendre » : la question revient environ 30 s plus tard si ShowTime est toujours bloquée ; une minute après le blocage, ShowTime répond de nouveau, la fenêtre se ferme d'elle-même et le journal dit « The main thread answers again ».
+- [ ] `~/Library/Logs/ShowTime/hang-….txt` existe, et la pile du thread principal (« Thread_… DispatchQueue_1: com.apple.main-thread ») passe par `Thread.Sleep`.
+- [ ] `open -a ShowTime --args --test-hang`, démarrer avant 15 s une vidéo avec le micro, puis, une fois la fenêtre apparue, « Forcer l'arrêt » : ShowTime se ferme, et la vidéo dans `~/Pictures/ShowTime` se lit (`ffmpeg -i` affiche sa durée).
+- [ ] Sans blocage, aucune de ces alertes de ShowTime laissée ouverte 2 minutes n'affiche la fenêtre : « Quitter ShowTime » pendant un enregistrement (« Un enregistrement vidéo est en cours… ») ; un raccourci de vidéo pendant une sélection de zone, ou tout autre raccourci qui finit sur une alerte ; « Supprimer » dans l'aperçu d'une vidéo.
+- [ ] Le Mac mis en veille 1 minute puis réveillé n'affiche pas la fenêtre.
+- [ ] Blocage qui finit avant la question : le journal dit « The main thread answers again » et aucune fenêtre ne reste ouverte.
 
 ### Étape 7 : réglages
 

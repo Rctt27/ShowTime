@@ -167,6 +167,7 @@
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
                         <RowDefinition Height="Auto"/>
+                        <RowDefinition Height="Auto"/>
                     </Grid.RowDefinitions>
                     <TextBlock Style="{StaticResource Label}" Text="Capturer une zone"/>
                     <TextBox x:Name="HotkeyRegionBox" Grid.Column="1" Style="{StaticResource HotkeyBox}" Margin="0,0,0,6"/>
@@ -190,6 +191,9 @@
                     <TextBlock x:Name="HighlightWarning" Grid.Row="9" Grid.Column="1" Style="{StaticResource Hint}" Margin="0,4,0,0"
                                TextWrapping="Wrap" Visibility="Collapsed"
                                Text="Pendant l'enregistrement, cette touche n'écrira plus rien dans les applications."/>
+                    <Button x:Name="HighlightStyleButton" Grid.Row="10" Grid.Column="1" HorizontalAlignment="Left" Margin="0,6,0,0"
+                            Padding="10,3" Content="Personnaliser le trait…" Click="HighlightStyle_Click"
+                            ToolTip="Largeur, finesse à grande vitesse, fluidité, effilements et opacité du surlignage, avec un aperçu."/>
                 </Grid>
                 <DockPanel Margin="0,8,0,0">
                     <Button DockPanel.Dock="Right" Content="Raccourcis par défaut" Padding="10,3" Click="DefaultHotkeys_Click"/>

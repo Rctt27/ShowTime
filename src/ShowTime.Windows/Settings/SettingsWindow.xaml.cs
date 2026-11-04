@@ -20,12 +20,14 @@ namespace ShowTime;
 /// <summary>What the settings window needs from the rest of the app.</summary>
 internal sealed record SettingsContext(
     AppSettings Settings, ISettingsStore Store, SettingsDefaults Defaults, FfmpegLocator Locator, IFfmpegPlatform Platform,
-    IAudioDeviceLister AudioDevices, IStartupRegistration Startup, SettingsEditor Editor, TranscriptionModelLocator Models);
+    IAudioDeviceLister AudioDevices, IStartupRegistration Startup, SettingsEditor Editor, TranscriptionModelLocator Models,
+    IHighlightOverlayFactory Overlays, IUiThread UiThread, TimeProvider Clock, IRecordingStatus Recording);
 
 public partial class SettingsWindow : Window
 {
     private readonly AppSettings _settings;
     private readonly SettingsContext _context;
+    private HighlightStyle _highlightStyle;
 
     internal SettingsWindow(SettingsContext context)
     {
@@ -63,6 +65,9 @@ public partial class SettingsWindow : Window
         HighlightTriggerBox.PreviewMouseDown += HighlightTriggerBox_PreviewMouseDown;
         HighlightTriggerBox.TextChanged += (_, _) => UpdateHighlightWarning();
         UpdateHighlightWarning();
+        _highlightStyle = settings.HighlightStyle;
+        // Its preview draws over the screen like a recording: not while one is under way.
+        HighlightStyleButton.IsEnabled = !_context.Recording.IsBusy;
 
         StartupBox.IsChecked = _context.Startup.IsEnabled;
         UpdateQualityState();
@@ -229,6 +234,16 @@ public partial class SettingsWindow : Window
         HighlightTriggerBox.Text = defaults.HighlightTrigger;
     }
 
+    private void HighlightStyle_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new HighlightStyleWindow(_highlightStyle, _context.Defaults, _context.Overlays, _context.UiThread, _context.Clock)
+        {
+            Owner = this
+        };
+        if (window.ShowDialog() == true)
+            _highlightStyle = window.Chosen;
+    }
+
     private void Browse_Click(object sender, RoutedEventArgs e)
     {
         using var dialog = new Forms.FolderBrowserDialog
@@ -274,7 +289,7 @@ public partial class SettingsWindow : Window
             HotkeyVideoRegionBox.Text, HotkeyVideoFullScreenBox.Text, HotkeyVideoStartBox.Text, HotkeyVideoStopBox.Text,
             HighlightTriggerBox.Text, FfmpegBox.Text, (MicrophoneBox.SelectedItem as ComboBoxItem)?.Tag as string ?? _settings.Microphone,
             RecordMicrophoneBox.IsChecked == true, SystemAudioBox.IsChecked == true, (int)FrameRateBox.SelectedItem,
-            TranscribeBox.IsChecked == true, LanguageBox.SelectedValue as string ?? "fr", ModelBox.Text);
+            TranscribeBox.IsChecked == true, LanguageBox.SelectedValue as string ?? "fr", ModelBox.Text, _highlightStyle);
         if (_context.Editor.TryApply(form) is { } problem)
         {
             MessageBox.Show(this, problem, "ShowTime", MessageBoxButton.OK, MessageBoxImage.Warning);

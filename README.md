@@ -29,6 +29,8 @@ Un Mac n'a pas de touche Impr. écran, et `Cmd+Maj+3/4/5` appartiennent à macOS
 
 Tant que le raccourci de surlignage est maintenu, une traînée jaune translucide suit la souris et apparaît dans la vidéo ; elle s'estompe au relâchement. Il peut aussi être une touche seule (Espace, qui n'écrit alors plus rien pendant l'enregistrement) ou, sous Windows, un bouton latéral de la souris : cliquez avec dans le champ des réglages. Sur Mac, il se maintient au clavier (`Option+Espace`, car `Ctrl+Espace` y change la source de saisie). Les boutons supplémentaires des souris gaming s'associent à une touche `F13` à `F24` dans le logiciel du fabricant, puis à ShowTime.
 
+La traînée est un coup de pinceau : plus fine quand la souris va vite, avec des courbes fluides et des bouts effilés. Son trait (largeur, finesse à grande vitesse, douceur, fluidité, effilements, opacité) se règle dans Réglages › Personnaliser le trait…, avec un aperçu où l'on trace comme pendant un enregistrement.
+
 ## Éditeur
 
 Outils : flèche, ligne, rectangle, ellipse, crayon, surligneur, texte, numéros, flou, recadrage, sélection pour déplacer ou supprimer. Chaque outil a sa touche (indiquée dans l'infobulle). `Maj` contraint les formes et les angles. Le recadrage reste modifiable : annuler le défait sans perdre les annotations.
@@ -82,6 +84,8 @@ Le diagnostic vérifie, sans ouvrir de fenêtre, ce dont ShowTime a besoin : ffm
 - macOS : `open -a ShowTime --args --diagnostics`, puis `open ~/Library/Logs/ShowTime/diagnostics.txt` (lancé directement depuis `Contents/MacOS`, il testerait les autorisations du Terminal plutôt que celles de ShowTime).
 
 Le rapport est aussi enregistré dans `diagnostics.txt`, dans le dossier du journal : joignez-le, avec le journal, à votre signalement.
+
+Sur Mac, si ShowTime ne répond plus pendant 10 secondes, une fenêtre propose « Attendre » ou « Forcer l'arrêt » ; elle reprend le clavier à ShowTime, et se ferme d'elle-même si ShowTime se remet à répondre. « Forcer l'arrêt » ferme ShowTime en gardant la vidéo en cours d'enregistrement. ShowTime enregistre au même moment où il était bloqué dans `hang-….txt`, dans le dossier du journal : joignez ce fichier au signalement. Si cette fenêtre n'apparaît pas, ShowTime se ferme depuis le Moniteur d'activité (Applications › Utilitaires) : sélectionner ShowTime, puis « Forcer à quitter ». Une app de la barre des menus n'apparaît pas dans la fenêtre « Forcer à quitter » de `⌥⌘⎋`.
 
 ## Développement
 

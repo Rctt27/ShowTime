@@ -54,6 +54,8 @@ public sealed class JsonSettingsStore : ISettingsStore
         settings ??= new AppSettings(_defaults);
         if (string.IsNullOrWhiteSpace(settings.OutputFolder))
             settings.OutputFolder = _defaults.OutputFolder;
+        // The JSON metadata ignores nullable annotations: "HighlightStyle": null, written by hand, arrives as null.
+        settings.HighlightStyle ??= HighlightStyle.Default;
         return settings;
     }
 

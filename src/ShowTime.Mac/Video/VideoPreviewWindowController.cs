@@ -5,6 +5,7 @@ using CoreFoundation;
 using CoreGraphics;
 using CoreMedia;
 using Foundation;
+using Microsoft.Extensions.Logging;
 using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
 using ShowTime.Core.Transcription;
@@ -31,6 +32,7 @@ internal sealed class VideoPreviewWindowController : NSWindowController
     private readonly SeekingPlayerView _playerView;
     private readonly NSTextField _band;
     private readonly NSButton _generate;
+    private readonly ILogger _log;
     private string? _microphoneTrack;
     private AVPlayer? _player;
     private NSObject? _timeObserver;
@@ -39,10 +41,12 @@ internal sealed class VideoPreviewWindowController : NSWindowController
 
     /// <param name="transcription">The transcription started with the recording, or null.</param>
     /// <param name="microphoneTrack">The microphone track kept for "Générer les sous-titres", or null.</param>
+    /// <param name="log">Where the video's deletion and the window's closing are noted.</param>
     public VideoPreviewWindowController(string path, IShell shell, IFileTrash trash, SubtitleFile subtitleFile,
-        Transcriptions transcriptions, TranscriptionJob? transcription, string? microphoneTrack) : base(CreateWindow(path))
+        Transcriptions transcriptions, TranscriptionJob? transcription, string? microphoneTrack, ILogger log) : base(CreateWindow(path))
     {
         _path = path;
+        _log = log;
         _shell = shell;
         _trash = trash;
         _transcriptions = transcriptions;
@@ -125,6 +129,8 @@ internal sealed class VideoPreviewWindowController : NSWindowController
             // Never used: the subtitles were not asked for.
             if (_microphoneTrack is not null)
                 _transcriptions.DiscardTrack(_microphoneTrack);
+            if (_log.IsEnabled(LogLevel.Information))
+                _log.LogInformation("Video preview of {Name} closed", Path.GetFileName(_path));
             Closed?.Invoke(this, EventArgs.Empty);
         };
     }
@@ -188,10 +194,14 @@ internal sealed class VideoPreviewWindowController : NSWindowController
         }
         catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
         {
+            if (_log.IsEnabled(LogLevel.Warning))
+                _log.LogWarning(ex, "Video {Name} could not be sent to the Trash", Path.GetFileName(_path));
             MacDialogs.Show("La vidéo n'a pas pu être supprimée : " + ex.Message, NSAlertStyle.Warning);
             Load();
             return false;
         }
+        if (_log.IsEnabled(LogLevel.Information))
+            _log.LogInformation("Video {Name} sent to the Trash", Path.GetFileName(_path));
         _subtitles.Close(discard: true);
         TrashSubtitles();
         Window?.Close();
