@@ -110,7 +110,7 @@
   <p class="hint">Maintenez le bouton gauche (ou Espace) et tracez sur l'application. Comme dans ShowTime, la position
     est relevée toutes les 16 ms, puis le trait reste 0,3 s et s'estompe en 0,5 s.</p>
   <div class="toggles">
-    <button id="before" aria-pressed="false" title="La traînée actuelle de ShowTime, pour comparer">Avant</button>
+    <button id="before" aria-pressed="false" title="La traînée de ShowTime avant la 0.6, pour comparer">Avant</button>
     <button id="dark" aria-pressed="false">Sombre</button>
     <button id="showDots" aria-pressed="false" title="Les positions relevées à 60 Hz">Échantillons</button>
   </div>
@@ -524,25 +524,25 @@ function toggle(id, apply) {
     button.blur();
   });
 }
-toggle("before", on => { before = on; drawn = []; trail.clearRect(0, 0, trailCanvas.width, trailCanvas.height); readout.textContent = on ? "traînée actuelle : 14,4 px, 25 %, sans anticrénelage" : ""; });
+toggle("before", on => { before = on; drawn = []; trail.clearRect(0, 0, trailCanvas.width, trailCanvas.height); readout.textContent = on ? "traînée d'avant la 0.6 : 14,4 px, 25 %, sans anticrénelage" : ""; });
 toggle("dark", on => { document.documentElement.dataset.theme = on ? "dark" : "light"; });
 toggle("showDots", on => { showDots = on; paintDots(); });
 
-const csharp = () => [
-  "// Values chosen in the prototype",
-  `public const double Thickness = ${params.thickness};`,
-  `public const double MinRatio = ${params.minRatio};`,
-  `public const double FastSpeed = ${params.fastSpeed};`,
-  `public static readonly TimeSpan WidthSmoothing = TimeSpan.FromMilliseconds(${params.smoothing});`,
-  `public static readonly TimeSpan PathSmoothing = TimeSpan.FromMilliseconds(${params.fluidity});`,
-  `public const double StartTaper = ${params.startTaper};`,
-  `public const double EndTaper = ${params.endTaper};`,
-  `public const double TaperFloor = ${params.taperFloor};`,
-  `public const double FullOpacity = ${params.opacity};`
-].join("\n");
+// The stroke as settings.json holds it (HighlightStyle): pasted there, or into the defaults of the core.
+const settingsJson = () => '"HighlightStyle": ' + JSON.stringify({
+  Thickness: params.thickness,
+  MinRatio: params.minRatio,
+  FastSpeed: params.fastSpeed,
+  WidthSmoothing: params.smoothing,
+  Fluidity: params.fluidity,
+  StartTaper: params.startTaper,
+  EndTaper: params.endTaper,
+  TaperFloor: params.taperFloor,
+  Opacity: params.opacity
+}, null, 2);
 
 document.getElementById("copy").addEventListener("click", async e => {
-  const text = csharp();
+  const text = settingsJson();
   const area = document.getElementById("values");
   area.value = text;
   area.style.display = "block";

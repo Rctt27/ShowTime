@@ -110,8 +110,10 @@ internal sealed class SettingsWindowController : NSWindowController
         UpdateHighlightWarning();
         _highlightStyle = settings.HighlightStyle;
         _highlightStyleButton = NSButton.CreateButton("Personnaliser le trait…", EditHighlightStyle);
-        // Its preview draws over the screen like a recording: not while one is under way.
-        _highlightStyleButton.Enabled = !context.Recording.IsBusy;
+        // Its preview draws over the screen like a recording: not while one is under way, which may start from the menu
+        // bar while this window is open.
+        UpdateHighlightStyleButton();
+        context.Recording.StateChanged += Recording_StateChanged;
         _startup.State = context.Startup.IsEnabled ? NSCellStateValue.On : NSCellStateValue.Off;
 
         var window = Window!;
@@ -123,7 +125,11 @@ internal sealed class SettingsWindowController : NSWindowController
         window.SetContentSize(new CGSize(size.Width, Math.Min(size.Height, screen)));
         window.ContentMinSize = new CGSize(size.Width, Math.Min(size.Height, MinHeight));
         window.ContentMaxSize = new CGSize(size.Width, size.Height);
-        window.WillClose += (_, _) => Closed?.Invoke(this, EventArgs.Empty);
+        window.WillClose += (_, _) =>
+        {
+            _context.Recording.StateChanged -= Recording_StateChanged;
+            Closed?.Invoke(this, EventArgs.Empty);
+        };
         UpdateFormat();
         UpdatePatternPreview();
         LoadAudioDevices();
@@ -398,9 +404,16 @@ internal sealed class SettingsWindowController : NSWindowController
         UpdateHighlightWarning();
     }
 
+    private void UpdateHighlightStyleButton() => _highlightStyleButton.Enabled = !_context.Recording.IsBusy;
+
+    private void Recording_StateChanged(object? sender, EventArgs e) => _context.UiThread.Post(UpdateHighlightStyleButton);
+
     private void EditHighlightStyle()
     {
-        var editor = new HighlightStyleWindowController(_highlightStyle, _context.Defaults, _context.Overlays, _context.UiThread, _context.Clock);
+        if (_context.Recording.IsBusy)
+            return;
+        var editor = new HighlightStyleWindowController(_highlightStyle, _context.Defaults, _context.Overlays, _context.UiThread, _context.Clock,
+            _context.Recording);
         Window!.BeginSheet(editor.Window!, _ =>
         {
             if (editor.Accepted)

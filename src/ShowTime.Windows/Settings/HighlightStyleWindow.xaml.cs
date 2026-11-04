@@ -13,7 +13,8 @@ namespace ShowTime;
 
 /// <summary>
 /// Tunes the highlight's stroke with a preview: holding the left button in the zone draws exactly as a recording does,
-/// through a highlighter of its own over the recording's overlay, on settings of its own that the sliders change.
+/// through a highlighter of its own over the recording's overlay, on settings of its own that the sliders change. It
+/// draws nothing while a recording is under way: its stroke would be in the video.
 /// </summary>
 // The highlighter is released when the window closes, the end of a WPF window's life.
 #pragma warning disable CA1001
@@ -23,10 +24,12 @@ public partial class HighlightStyleWindow : Window
     private readonly AppSettings _preview;
     private readonly PreviewHighlightInput _input = new();
     private readonly Highlighter _highlighter;
+    private readonly IRecordingStatus _recording;
     private readonly List<Slider> _sliders = [];
+    private readonly List<TextBlock> _values = [];
 
     internal HighlightStyleWindow(HighlightStyle style, SettingsDefaults defaults, IHighlightOverlayFactory overlays, IUiThread uiThread,
-        TimeProvider clock)
+        TimeProvider clock, IRecordingStatus recording)
     {
         InitializeComponent();
         Icon = AppIcon.ImageSource;
@@ -36,7 +39,13 @@ public partial class HighlightStyleWindow : Window
         _highlighter = new Highlighter(_preview, _input, overlays, uiThread, clock, HotkeyNaming.Windows);
         foreach (var field in HighlightStyle.Fields)
             AddSlider(field);
-        Closed += (_, _) => _highlighter.Dispose();
+        _recording = recording;
+        _recording.StateChanged += Recording_StateChanged;
+        Closed += (_, _) =>
+        {
+            _recording.StateChanged -= Recording_StateChanged;
+            _highlighter.Dispose();
+        };
     }
 
     /// <summary>The style as the sliders set it; WPF's Window already has a Style.</summary>
@@ -44,6 +53,19 @@ public partial class HighlightStyleWindow : Window
 
     /// <summary>One per <see cref="HighlightStyle.Fields"/>, in their order.</summary>
     internal IReadOnlyList<Slider> Sliders => _sliders;
+
+    /// <summary>The value shown beside each slider.</summary>
+    internal IReadOnlyList<TextBlock> Values => _values;
+
+    /// <summary>What a press in the zone does, over the area it covers in physical pixels.</summary>
+    internal void Press(PixelRect zone)
+    {
+        if (_recording.IsBusy)
+            return;
+        // The overlay goes over the zone at each press, where the window is now.
+        _highlighter.Enable(zone);
+        _input.Press();
+    }
 
     /// <summary>What "Valeurs par défaut" does.</summary>
     internal void ResetToDefaults()
@@ -73,7 +95,8 @@ public partial class HighlightStyleWindow : Window
             IsSnapToTickEnabled = true,
             Margin = new Thickness(0, 4, 0, 2)
         };
-        value.Text = field.Format(field.Snap(slider.Value));
+        // As it is, even off the slider's step: the stroke keeps that value until the slider moves.
+        value.Text = field.Format(field.Get(Chosen));
         slider.ValueChanged += (_, _) =>
         {
             Chosen = field.With(Chosen, field.Snap(slider.Value));
@@ -87,22 +110,33 @@ public partial class HighlightStyleWindow : Window
         entry.Children.Add(new TextBlock { Text = field.Help, Style = (Style)FindResource("Hint") });
         SliderPanel.Children.Add(entry);
         _sliders.Add(slider);
+        _values.Add(value);
     }
 
     private void Zone_MouseLeftButtonDown(object sender, MouseButtonEventArgs e)
     {
-        // The overlay goes over the zone at each press, where the window is now, in physical pixels.
         var topLeft = Zone.PointToScreen(new Point(0, 0));
         var bottomRight = Zone.PointToScreen(new Point(Zone.ActualWidth, Zone.ActualHeight));
         var left = (int)Math.Round(topLeft.X);
         var top = (int)Math.Round(topLeft.Y);
-        _highlighter.Enable(new PixelRect(left, top, (int)Math.Round(bottomRight.X) - left, (int)Math.Round(bottomRight.Y) - top));
-        _input.Press();
+        Press(new PixelRect(left, top, (int)Math.Round(bottomRight.X) - left, (int)Math.Round(bottomRight.Y) - top));
         Zone.CaptureMouse();
         e.Handled = true;
     }
 
     private void Zone_MouseLeftButtonUp(object sender, MouseButtonEventArgs e) => Zone.ReleaseMouseCapture();
+
+    /// <summary>A recording that starts while the preview draws ends its stroke at once.</summary>
+    private void Recording_StateChanged(object? sender, EventArgs e)
+    {
+        if (!Dispatcher.CheckAccess())
+        {
+            Dispatcher.InvokeAsync(() => Recording_StateChanged(sender, e));
+            return;
+        }
+        if (_recording.IsBusy)
+            _highlighter.Disable();
+    }
 
     private void Defaults_Click(object sender, RoutedEventArgs e) => ResetToDefaults();
 

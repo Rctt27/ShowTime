@@ -66,8 +66,11 @@ public partial class SettingsWindow : Window
         HighlightTriggerBox.TextChanged += (_, _) => UpdateHighlightWarning();
         UpdateHighlightWarning();
         _highlightStyle = settings.HighlightStyle;
-        // Its preview draws over the screen like a recording: not while one is under way.
-        HighlightStyleButton.IsEnabled = !_context.Recording.IsBusy;
+        // Its preview draws over the screen like a recording: not while one is under way, which may start from the tray
+        // menu while this window is open.
+        UpdateHighlightStyleButton();
+        _context.Recording.StateChanged += Recording_StateChanged;
+        Closed += (_, _) => _context.Recording.StateChanged -= Recording_StateChanged;
 
         StartupBox.IsChecked = _context.Startup.IsEnabled;
         UpdateQualityState();
@@ -234,9 +237,22 @@ public partial class SettingsWindow : Window
         HighlightTriggerBox.Text = defaults.HighlightTrigger;
     }
 
+    private void UpdateHighlightStyleButton() => HighlightStyleButton.IsEnabled = !_context.Recording.IsBusy;
+
+    private void Recording_StateChanged(object? sender, EventArgs e)
+    {
+        if (Dispatcher.CheckAccess())
+            UpdateHighlightStyleButton();
+        else
+            Dispatcher.InvokeAsync(UpdateHighlightStyleButton);
+    }
+
     private void HighlightStyle_Click(object sender, RoutedEventArgs e)
     {
-        var window = new HighlightStyleWindow(_highlightStyle, _context.Defaults, _context.Overlays, _context.UiThread, _context.Clock)
+        if (_context.Recording.IsBusy)
+            return;
+        var window = new HighlightStyleWindow(_highlightStyle, _context.Defaults, _context.Overlays, _context.UiThread, _context.Clock,
+            _context.Recording)
         {
             Owner = this
         };

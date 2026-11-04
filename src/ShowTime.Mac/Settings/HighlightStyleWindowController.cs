@@ -14,7 +14,7 @@ namespace ShowTime.Mac.Settings;
 /// Tunes the highlight's stroke with a preview, the same as on Windows: holding the mouse button in the zone draws
 /// exactly as a recording does, through a highlighter of its own over the recording's overlay, on settings of its own
 /// that the sliders change. Shown as a sheet of the settings window, not a modal session, so that the highlighter's
-/// frames keep running.
+/// frames keep running. It draws nothing while a recording is under way: its stroke would be in the video.
 /// </summary>
 internal sealed class HighlightStyleWindowController : NSWindowController
 {
@@ -23,17 +23,22 @@ internal sealed class HighlightStyleWindowController : NSWindowController
     private readonly AppSettings _preview;
     private readonly PreviewHighlightInput _input = new();
     private readonly Highlighter _highlighter;
+    private readonly IUiThread _uiThread;
+    private readonly IRecordingStatus _recording;
     private readonly PreviewZone _zone = new();
     private readonly List<(HighlightStyleField Field, NSSlider Slider, NSTextField Value)> _sliders = [];
 
     public HighlightStyleWindowController(HighlightStyle style, SettingsDefaults defaults, IHighlightOverlayFactory overlays,
-        IUiThread uiThread, TimeProvider clock) : base(CreateWindow())
+        IUiThread uiThread, TimeProvider clock, IRecordingStatus recording) : base(CreateWindow())
     {
         Chosen = style;
         // The defaults' trigger is valid, so the highlighter enables whatever the user's is.
         _preview = new AppSettings(defaults) { HighlightStyle = style };
         _highlighter = new Highlighter(_preview, _input, overlays, uiThread, clock, HotkeyNaming.MacOS);
         _zone.Pressed += (_, _) => Press();
+        _uiThread = uiThread;
+        _recording = recording;
+        _recording.StateChanged += Recording_StateChanged;
         var window = Window!;
         window.ContentView = Build();
         window.SetContentSize(window.ContentView.FittingSize);
@@ -58,7 +63,10 @@ internal sealed class HighlightStyleWindowController : NSWindowController
     protected override void Dispose(bool disposing)
     {
         if (disposing)
+        {
+            _recording.StateChanged -= Recording_StateChanged;
             _highlighter.Dispose();
+        }
         base.Dispose(disposing);
     }
 
@@ -88,7 +96,8 @@ internal sealed class HighlightStyleWindowController : NSWindowController
 
     private NSStackView Entry(HighlightStyleField field)
     {
-        var value = Help(field.Format(field.Snap(field.Get(Chosen))), EntryWidth);
+        // As it is, even off the slider's step: the stroke keeps that value until the slider moves.
+        var value = Help(field.Format(field.Get(Chosen)), EntryWidth);
         var slider = new NSSlider { MinValue = field.Min, MaxValue = field.Max, DoubleValue = field.Get(Chosen), Continuous = true };
         slider.WidthAnchor.ConstraintEqualTo(EntryWidth).Active = true;
         slider.Activated += (_, _) =>
@@ -121,10 +130,19 @@ internal sealed class HighlightStyleWindowController : NSWindowController
 
     private void Press()
     {
+        if (_recording.IsBusy)
+            return;
         // The overlay goes over the zone at each press, where the window is now.
         _highlighter.Enable(ZoneInPixels());
         _input.Press();
     }
+
+    /// <summary>A recording that starts while the preview draws ends its stroke at once.</summary>
+    private void Recording_StateChanged(object? sender, EventArgs e) => _uiThread.Post(() =>
+    {
+        if (_recording.IsBusy)
+            _highlighter.Disable();
+    });
 
     private void Finish(bool accepted)
     {

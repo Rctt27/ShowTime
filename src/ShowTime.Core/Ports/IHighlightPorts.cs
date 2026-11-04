@@ -43,5 +43,6 @@ public interface IHighlightOverlay : IDisposable
 public interface IHighlightOverlayFactory
 {
     /// <summary>A hidden overlay over the recorded area, captured with it.</summary>
+    /// <exception cref="InvalidOperationException">The system cannot give it a surface: the highlight stays off.</exception>
     IHighlightOverlay Create(PixelRect area);
 }

@@ -83,6 +83,11 @@ public sealed class HighlightOverlayTests : IDisposable
     });
 
     [Fact]
+    public async Task An_area_too_large_for_a_surface_is_refused() => await Sta.Run(() =>
+        // 100,000 pixels square would need 40 GB: the highlighter leaves the trail off rather than draw it nowhere.
+        Should.Throw<InvalidOperationException>(() => new HighlightOverlay(new Rectangle(0, 0, 100_000, 100_000))));
+
+    [Fact]
     public async Task Points_outside_the_area_are_accepted() => await Sta.Run(() =>
     {
         using var overlay = new HighlightOverlay(new Rectangle(100, 100, 200, 100));
