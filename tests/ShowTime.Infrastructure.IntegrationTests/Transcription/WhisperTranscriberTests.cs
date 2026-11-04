@@ -83,13 +83,14 @@ public sealed class WhisperTranscriberTests
     [Fact]
     public async Task A_transcription_cancelled_while_whisper_runs_ends_cancelled_and_the_next_one_works()
     {
-        // A video deleted while its microphone is transcribed. whisper.cpp reports 0 % at the start of its first
-        // window: the cancellation lands while it runs, and its model must not be freed under it.
+        // A video deleted while its microphone is transcribed. Cancelled from whisper.cpp's own progress report (0 %
+        // at the start of its first window), the cancellation certainly lands while it runs: its model must not be
+        // freed under it, and the transcription ends cancelled rather than in "Cannot dispose while processing".
         var model = RequireModel();
         using var cancel = new CancellationTokenSource();
 
         await Should.ThrowAsync<OperationCanceledException>(
-            new WhisperTranscriber().TranscribeAsync(Speech, model, "fr", progress => _ = cancel.CancelAsync(), cancel.Token));
+            new WhisperTranscriber().TranscribeAsync(Speech, model, "fr", progress => cancel.Cancel(), cancel.Token));
 
         var words = await new WhisperTranscriber().TranscribeAsync(Speech, model, "fr", _ => { }, TestContext.Current.CancellationToken);
         words.Count.ShouldBeGreaterThanOrEqualTo(6);
