@@ -8,6 +8,7 @@ using System.Windows.Forms;
 using ShowTime.Adapters;
 using ShowTime.Core.Geometry;
 using ShowTime.Core.Ports;
+using ShowTime.Core.Recording;
 
 namespace ShowTime;
 
@@ -21,9 +22,6 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
 {
     internal static readonly Color Ink = Color.FromArgb(255, 212, 0);
 
-    /// <summary>The stroke width at 100 %, scaled by the monitor's DPI.</summary>
-    internal const float Thickness = 14.4f;
-
     private readonly Rectangle _bounds;
     private readonly IntPtr _surfaceDc;
     private readonly IntPtr _dib;
@@ -32,7 +30,7 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
     /// <summary>The DIB's pixels, premultiplied BGRA, as GDI+ draws on them.</summary>
     private readonly Bitmap _surface;
 
-    private Point[] _points = [];
+    private IReadOnlyList<StrokeDisc> _stroke = [];
     private double _opacity = 1;
     private bool _released;
 
@@ -60,6 +58,9 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
         _dib = Native.CreateDIBSection(_surfaceDc, &header, Native.DIB_RGB_COLORS, out var bits, IntPtr.Zero, 0);
         _previousBitmap = Native.SelectObject(_surfaceDc, _dib);
         _surface = new Bitmap(width, height, width * 4, PixelFormat.Format32bppPArgb, bits);
+        // Created now, on the area's monitor, so that its DPI is known before the first stroke is built.
+        CreateHandle();
+        Scale = DeviceDpi / 96.0;
     }
 
     protected override bool ShowWithoutActivation => true;
@@ -77,21 +78,18 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
     /// <summary>What <see cref="SetOpacity"/> last set; Form.Opacity is not used, it would replace the surface.</summary>
     internal double TrailOpacity => _opacity;
 
-    private float StrokeWidth => Thickness * DeviceDpi / 96f;
+    public new double Scale { get; }
 
     private Rectangle Surface => new(0, 0, _surface.Width, _surface.Height);
 
     /// <summary>The surface's color at a point of the window, with straight alpha.</summary>
     internal Color SurfacePixel(int x, int y) => _surface.GetPixel(x, y);
 
-    public void Draw(IReadOnlyList<PixelPoint> points)
+    public void Draw(IReadOnlyList<StrokeDisc> stroke, PixelRect changed)
     {
-        var previous = _points;
-        _points = [.. points.Select(p => new Point(p.X - _bounds.X, p.Y - _bounds.Y))];
-        // While the trail grows, only its new end needs repainting; a new trail repaints everything.
-        var grown = previous.Length > 0 && _points.Length > previous.Length && _points[0] == previous[0];
-        var changed = Rectangle.Intersect(grown ? Around(_points[(previous.Length - 1)..]) : Surface, Surface);
-        Repaint(changed);
+        _stroke = stroke;
+        var area = Rectangle.Intersect(new Rectangle(changed.X - _bounds.X, changed.Y - _bounds.Y, changed.Width, changed.Height), Surface);
+        Repaint(area);
         if (!Visible)
         {
             Show();
@@ -100,7 +98,7 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
         }
         else
         {
-            Push(changed);
+            Push(area);
         }
     }
 
@@ -117,7 +115,7 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
 
     void IHighlightOverlay.Hide()
     {
-        _points = [];
+        _stroke = [];
         Repaint(Surface);
         Hide();
     }
@@ -144,7 +142,7 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
         base.Dispose(disposing);
     }
 
-    /// <summary>Clears the rectangle of the surface, then draws in it what of the trail falls there.</summary>
+    /// <summary>Clears the rectangle of the surface, then paints in it the pieces of the stroke that touch it.</summary>
     private void Repaint(Rectangle area)
     {
         if (area.IsEmpty)
@@ -154,21 +152,22 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
         graphics.CompositingMode = CompositingMode.SourceCopy;
         using (var clear = new SolidBrush(Color.Transparent))
             graphics.FillRectangle(clear, area);
-        if (_points.Length == 0)
+        if (_stroke.Count == 0)
             return;
 
         graphics.CompositingMode = CompositingMode.SourceOver;
         graphics.SmoothingMode = SmoothingMode.AntiAlias;
         graphics.PixelOffsetMode = PixelOffsetMode.HighQuality;
-        var width = StrokeWidth;
-        if (_points.Length == 1)
+        using var ink = new SolidBrush(Ink);
+        float x0 = _bounds.X, y0 = _bounds.Y;
+        foreach (var i in BrushStroke.PiecesTouching(_stroke, new PixelRect(area.X + _bounds.X, area.Y + _bounds.Y, area.Width, area.Height)))
         {
-            using var brush = new SolidBrush(Ink);
-            graphics.FillEllipse(brush, _points[0].X - width / 2, _points[0].Y - width / 2, width, width);
-            return;
+            var disc = _stroke[i];
+            var radius = (float)disc.Radius;
+            graphics.FillEllipse(ink, (float)disc.X - x0 - radius, (float)disc.Y - y0 - radius, 2 * radius, 2 * radius);
+            if (i + 1 < _stroke.Count && BrushStroke.Hull(disc, _stroke[i + 1]) is { } hull)
+                graphics.FillPolygon(ink, [.. hull.Select(p => new PointF((float)p.X - x0, (float)p.Y - y0))]);
         }
-        using var pen = new Pen(Ink, width) { StartCap = LineCap.Round, EndCap = LineCap.Round, LineJoin = LineJoin.Round };
-        graphics.DrawLines(pen, _points);
     }
 
     /// <summary>Copies the rectangle of the surface to the screen.</summary>
@@ -202,12 +201,6 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
         AlphaFormat = Native.AC_SRC_ALPHA
     };
 
-    private Rectangle Around(Point[] points)
-    {
-        int left = points.Min(p => p.X), top = points.Min(p => p.Y), right = points.Max(p => p.X), bottom = points.Max(p => p.Y);
-        var margin = (int)Math.Ceiling(StrokeWidth);
-        return Rectangle.FromLTRB(left - margin, top - margin, right + margin, bottom + margin);
-    }
 }
 
 internal sealed class HighlightOverlayFactory : IHighlightOverlayFactory

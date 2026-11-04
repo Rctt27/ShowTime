@@ -7,6 +7,7 @@ using ShowTime.Adapters;
 using ShowTime.Core.Geometry;
 using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
+using ShowTime.Core.Settings;
 using ShowTime.Infrastructure.Platform;
 using ShowTime.Infrastructure.Recording;
 using ShowTime.Platform.Windows;
@@ -21,16 +22,24 @@ public sealed class HighlightOverlayTests : IDisposable
 
     public void Dispose() => File.Delete(_path);
 
+    /// <summary>A slow stroke through the points, at full width, without taper.</summary>
+    private static IReadOnlyList<StrokeDisc> Stroke(double thickness, params PixelPoint[] points) =>
+        BrushStroke.Build([.. points.Select((p, i) => new TrailSample(p, TimeSpan.FromMilliseconds(i * 500)))],
+            HighlightStyle.Default with { Thickness = thickness, StartTaper = 0, EndTaper = 0 }, 1, true);
+
+    private static void Draw(HighlightOverlay overlay, IReadOnlyList<StrokeDisc> stroke) =>
+        overlay.Draw(stroke, BrushStroke.Changed([], stroke)!.Value);
+
     [Fact]
     public async Task The_overlay_is_click_through_never_activated_and_captured() => await Sta.Run(() =>
     {
         using var overlay = new HighlightOverlay(new Rectangle(0, 0, 200, 100));
-        overlay.SetOpacity(HighlightTrail.FullOpacity);
-        overlay.Draw([new PixelPoint(10, 50), new PixelPoint(190, 50)]);
+        overlay.SetOpacity(HighlightStyle.Default.Opacity);
+        Draw(overlay, Stroke(14, new PixelPoint(10, 50), new PixelPoint(190, 50)));
 
         overlay.Visible.ShouldBeTrue();
-        overlay.TrailOpacity.ShouldBe(HighlightTrail.FullOpacity, 0.01);
-        HighlightOverlay.Thickness.ShouldBe(14.4f);
+        overlay.TrailOpacity.ShouldBe(HighlightStyle.Default.Opacity, 0.01);
+        overlay.Scale.ShouldBe(overlay.DeviceDpi / 96.0);
         const int expected = Native.WS_EX_TRANSPARENT | Native.WS_EX_NOACTIVATE | Native.WS_EX_LAYERED;
         (Native.GetWindowLong(overlay.Handle, Native.GWL_EXSTYLE) & expected).ShouldBe(expected);
         Native.GetWindowDisplayAffinity(overlay.Handle, out var affinity).ShouldBeTrue();
@@ -42,7 +51,7 @@ public sealed class HighlightOverlayTests : IDisposable
     public async Task Opacity_changes_and_hiding_hides_the_trail() => await Sta.Run(() =>
     {
         using var overlay = new HighlightOverlay(new Rectangle(0, 0, 200, 100));
-        overlay.Draw([new PixelPoint(10, 50)]);
+        Draw(overlay, Stroke(14, new PixelPoint(10, 50)));
         overlay.SetOpacity(0.2);
         overlay.TrailOpacity.ShouldBe(0.2, 0.01);
         ((IHighlightOverlay)overlay).Hide();
@@ -53,7 +62,7 @@ public sealed class HighlightOverlayTests : IDisposable
     public async Task The_trail_is_antialiased_without_a_fringe() => await Sta.Run(() =>
     {
         using var overlay = new HighlightOverlay(new Rectangle(0, 0, 200, 200));
-        overlay.Draw([new PixelPoint(20, 30), new PixelPoint(180, 170)]);
+        Draw(overlay, Stroke(20, new PixelPoint(20, 30), new PixelPoint(180, 170)));
 
         var pixels = (from x in Enumerable.Range(0, 200) from y in Enumerable.Range(0, 200) select overlay.SurfacePixel(x, y)).ToList();
         pixels.ShouldContain(c => c.A == 255);
@@ -66,7 +75,7 @@ public sealed class HighlightOverlayTests : IDisposable
     public async Task Hiding_clears_the_surface() => await Sta.Run(() =>
     {
         using var overlay = new HighlightOverlay(new Rectangle(0, 0, 100, 100));
-        overlay.Draw([new PixelPoint(10, 50), new PixelPoint(90, 50)]);
+        Draw(overlay, Stroke(14, new PixelPoint(10, 50), new PixelPoint(90, 50)));
         ((IHighlightOverlay)overlay).Hide();
 
         (from x in Enumerable.Range(0, 100) from y in Enumerable.Range(0, 100) select overlay.SurfacePixel(x, y))
@@ -77,7 +86,7 @@ public sealed class HighlightOverlayTests : IDisposable
     public async Task Points_outside_the_area_are_accepted() => await Sta.Run(() =>
     {
         using var overlay = new HighlightOverlay(new Rectangle(100, 100, 200, 100));
-        overlay.Draw([new PixelPoint(-500, -500), new PixelPoint(5000, 5000)]);
+        overlay.Draw(Stroke(14, new PixelPoint(-500, -500), new PixelPoint(5000, 5000)), new PixelRect(-600, -600, 6000, 6000));
         Sta.DoEvents();
         overlay.Visible.ShouldBeTrue();
     });
@@ -86,7 +95,7 @@ public sealed class HighlightOverlayTests : IDisposable
     public async Task The_factory_places_the_overlay_on_the_area() => await Sta.Run(() =>
     {
         using var overlay = (HighlightOverlay)new HighlightOverlayFactory().Create(new PixelRect(30, 40, 200, 100));
-        overlay.Draw([new PixelPoint(50, 50)]);
+        Draw(overlay, Stroke(14, new PixelPoint(50, 50)));
         overlay.Bounds.ShouldBe(new Rectangle(30, 40, 200, 100));
     });
 
@@ -118,8 +127,8 @@ public sealed class HighlightOverlayTests : IDisposable
             };
             w.Show();
             var o = new HighlightOverlay(area.ToRectangle());
-            o.SetOpacity(HighlightTrail.FullOpacity);
-            o.Draw([new PixelPoint(20, 60), new PixelPoint(150, 60)]);
+            o.SetOpacity(HighlightStyle.Default.Opacity);
+            Draw(o, Stroke(14, new PixelPoint(20, 60), new PixelPoint(150, 60)));
             Sta.DoEvents();
             return (w, o);
         });
@@ -151,7 +160,7 @@ public sealed class HighlightOverlayTests : IDisposable
                 for (var x = 0; x < area.Width; x++)
                 {
                     var i = (y * area.Width + x) * 3;
-                    // 25 % of #FFD400 over black is about (64, 53, 0).
+                    // 45 % of #FFD400 over black is about (115, 95, 0).
                     if (frame[i] > 40 && frame[i + 1] > 30 && frame[i + 2] < 30)
                         count++;
                 }

@@ -257,15 +257,16 @@ internal sealed class FakeHighlightInput : IHighlightInput
 
 internal sealed class FakeHighlightOverlay : IHighlightOverlay
 {
-    public List<IReadOnlyList<PixelPoint>> Draws { get; } = [];
+    public double Scale { get; set; } = 1;
+    public List<(IReadOnlyList<StrokeDisc> Stroke, PixelRect Changed)> Draws { get; } = [];
     public double Opacity { get; private set; }
     public int OpacityChanges { get; private set; }
     public bool Visible { get; private set; }
     public bool Disposed { get; private set; }
 
-    public void Draw(IReadOnlyList<PixelPoint> points)
+    public void Draw(IReadOnlyList<StrokeDisc> stroke, PixelRect changed)
     {
-        Draws.Add([.. points]);
+        Draws.Add(([.. stroke], changed));
         Visible = true;
     }
 
@@ -284,9 +285,12 @@ internal sealed class FakeHighlightOverlayFactory : IHighlightOverlayFactory
     public FakeHighlightOverlay? Overlay { get; private set; }
     public PixelRect? Area { get; private set; }
 
+    /// <summary>The scale of the overlays it creates.</summary>
+    public double Scale { get; set; } = 1;
+
     public IHighlightOverlay Create(PixelRect area)
     {
         Area = area;
-        return Overlay = new FakeHighlightOverlay();
+        return Overlay = new FakeHighlightOverlay { Scale = Scale };
     }
 }
