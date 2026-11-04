@@ -1,4 +1,5 @@
 using System.IO.Abstractions.TestingHelpers;
+using Microsoft.Extensions.Logging.Abstractions;
 using Microsoft.Extensions.Time.Testing;
 using NSubstitute;
 using ShowTime.Core.Ports;
@@ -32,7 +33,8 @@ public sealed class SubtitleEditorTests : IDisposable
         paths.WorkFolder.Returns(Path.Combine(Root, "work"));
         _file = new SubtitleFile(_fs);
         _transcriptions = new Transcriptions(_transcriber, new FakeAudioExtractor(_fs), new MicrophoneTracks(settings, models, paths, _fs),
-            models, settings, _file, _fs, new FakeRecordingStatus(), new ImmediateUiThread());
+            models, settings, _file, _fs, new FakeRecordingStatus(), new ImmediateUiThread(),
+            NullLogger<Transcriptions>.Instance);
         _editor = new SubtitleEditor(_file, _transcriptions, _clock, new ImmediateUiThread());
     }
 

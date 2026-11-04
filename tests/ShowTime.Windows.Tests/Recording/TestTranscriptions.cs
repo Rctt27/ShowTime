@@ -1,5 +1,6 @@
 using System.IO;
 using System.IO.Abstractions;
+using Microsoft.Extensions.Logging.Abstractions;
 using NSubstitute;
 using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
@@ -27,7 +28,8 @@ internal sealed class TestTranscriptions
         var locator = new TranscriptionModelLocator(fileSystem, [models]);
         Subtitles = new SubtitleFile(fileSystem);
         Queue = new Transcriptions(Transcriber, Extractor, new MicrophoneTracks(settings, locator, paths, fileSystem), locator,
-            settings, Subtitles, fileSystem, Substitute.For<IRecordingStatus>(), new ImmediateUiThread());
+            settings, Subtitles, fileSystem, Substitute.For<IRecordingStatus>(), new ImmediateUiThread(),
+            NullLogger<Transcriptions>.Instance);
     }
 
     public ManualTranscriber Transcriber { get; } = new();

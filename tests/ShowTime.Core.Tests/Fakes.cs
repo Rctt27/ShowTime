@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using ShowTime.Core.Geometry;
 using ShowTime.Core.Hotkeys;
@@ -20,6 +21,19 @@ internal sealed class FakeImage(int width = 10, int height = 10) : IImage
 internal sealed class ImmediateUiThread : IUiThread
 {
     public void Post(Action action) => action();
+}
+
+/// <summary>Keeps every line logged, for the test to read.</summary>
+internal sealed class ListLogger<T> : ILogger<T>
+{
+    public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+        Entries.Add((logLevel, formatter(state, exception), exception));
 }
 
 /// <summary>A settings store that keeps nothing.</summary>
