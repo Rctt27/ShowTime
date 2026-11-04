@@ -100,11 +100,13 @@ public sealed class HighlightOverlayTests : IDisposable
     });
 
     /// <summary>
-    /// A black window, the overlay over it with a trail near the top, recorded as the app records. Whatever the screen's
-    /// scale, yellow must appear in the video, and nowhere in the top rows, above the trail.
+    /// A black window, the overlay over it, recorded as the app records. The trail's first part is drawn while the overlay
+    /// is hidden (the whole surface pushed), its new end once it shows (only the changed rectangle pushed), then its
+    /// opacity is lowered while it shows (the constant alpha alone, as the fade does). Whatever the screen's scale, the
+    /// video must show the new end, at the lower opacity, and no yellow in the top rows, above the trail.
     /// </summary>
     [Fact]
-    public async Task The_trail_is_in_the_video()
+    public async Task The_trail_is_in_the_video_with_its_new_end_and_its_opacity()
     {
         var ffmpeg = AppPaths.CreateFfmpegLocator(new FileSystem()).Find("");
         Assert.SkipUnless(ffmpeg is not null, "Needs ffmpeg.");
@@ -127,8 +129,13 @@ public sealed class HighlightOverlayTests : IDisposable
             };
             w.Show();
             var o = new HighlightOverlay(area.ToRectangle());
-            o.SetOpacity(HighlightStyle.Default.Opacity);
-            Draw(o, Stroke(14, new PixelPoint(20, 60), new PixelPoint(150, 60)));
+            o.SetOpacity(0.9);
+            var first = Stroke(14, new PixelPoint(20, 60), new PixelPoint(150, 60));
+            Draw(o, first);
+            Sta.DoEvents();
+            var grown = Stroke(14, new PixelPoint(20, 60), new PixelPoint(150, 60), new PixelPoint(150, 180));
+            o.Draw(grown, BrushStroke.Changed(first, grown)!.Value);
+            o.SetOpacity(0.3);
             Sta.DoEvents();
             return (w, o);
         });
@@ -160,7 +167,7 @@ public sealed class HighlightOverlayTests : IDisposable
                 for (var x = 0; x < area.Width; x++)
                 {
                     var i = (y * area.Width + x) * 3;
-                    // 45 % of #FFD400 over black is about (115, 95, 0).
+                    // 30 % of #FFD400 over black is about (77, 64, 0).
                     if (frame[i] > 40 && frame[i + 1] > 30 && frame[i + 2] < 30)
                         count++;
                 }
@@ -169,6 +176,10 @@ public sealed class HighlightOverlayTests : IDisposable
         }
         Yellow(0, area.Height).ShouldBeGreaterThan(100);
         Yellow(0, 20).ShouldBe(0);
+        // The new end, below the first part.
+        Yellow(120, 170).ShouldBeGreaterThan(50);
+        // At 90 %, the opacity before the last change, the red would be about 230.
+        Enumerable.Range(0, area.Width * area.Height).Max(i => (int)frame[i * 3]).ShouldBeLessThan(140);
     }
 
     /// <summary>The frame at 1 s, as RGB bytes.</summary>

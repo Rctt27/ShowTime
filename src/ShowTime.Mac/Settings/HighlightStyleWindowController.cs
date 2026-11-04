@@ -137,8 +137,8 @@ internal sealed class HighlightStyleWindowController : NSWindowController
     /// <summary>The zone in ShowTime's pixels, on the screen holding its centre.</summary>
     private PixelRect ZoneInPixels()
     {
-        var window = Window!;
-        var frame = window.ConvertRectToScreen(_zone.ConvertRectToView(_zone.Bounds, window.ContentView));
+        // To the window's coordinates (null), then to the screen's: the content view may be flipped.
+        var frame = Window!.ConvertRectToScreen(_zone.ConvertRectToView(_zone.Bounds, null));
         double x = frame.X + frame.Width / 2, y = frame.Y + frame.Height / 2;
         var screens = ScreenInfo.Current();
         var screen = screens.FirstOrDefault(s =>

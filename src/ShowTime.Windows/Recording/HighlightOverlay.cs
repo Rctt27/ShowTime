@@ -191,7 +191,12 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
             dwFlags = Native.ULW_ALPHA,
             prcDirty = &dirty
         };
-        Native.UpdateLayeredWindowIndirect(Handle, &info);
+        if (!Native.UpdateLayeredWindowIndirect(Handle, &info))
+        {
+            // A rectangle the system refuses: the whole surface goes instead, rather than a trail that stops growing.
+            info.prcDirty = null;
+            Native.UpdateLayeredWindowIndirect(Handle, &info);
+        }
     }
 
     private Native.BLENDFUNCTION Blend() => new()

@@ -366,8 +366,12 @@ internal sealed class SettingsWindowController : NSWindowController
         {
             if (editor.Accepted)
                 _highlightStyle = editor.Chosen;
-            editor.Close();
-            editor.Dispose();
+            // The sheet ends from its own button's action: release it once that action has returned.
+            _context.UiThread.Post(() =>
+            {
+                editor.Close();
+                editor.Dispose();
+            });
         });
     }
 

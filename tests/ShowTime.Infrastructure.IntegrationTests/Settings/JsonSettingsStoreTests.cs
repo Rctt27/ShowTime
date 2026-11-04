@@ -113,6 +113,14 @@ public sealed class JsonSettingsStoreTests : IDisposable
     }
 
     [Fact]
+    public void A_null_highlight_style_gives_the_default_one()
+    {
+        // Hand-edited: without it, every press of the trigger and every save of the settings would throw.
+        Write("""{ "HighlightStyle": null }""");
+        _store.Load().HighlightStyle.ShouldBe(HighlightStyle.Default);
+    }
+
+    [Fact]
     public void Enums_are_written_by_name_as_in_v0_1_0()
     {
         var settings = _store.Load();
