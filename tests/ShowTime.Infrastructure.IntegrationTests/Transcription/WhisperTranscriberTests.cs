@@ -96,7 +96,7 @@ public sealed class WhisperTranscriberTests
     }
 
     [Fact]
-    public void The_native_library_loads()=> WhisperTranscriber.CheckRuntime(RequireModel()).ShouldBeNull();
+    public void The_native_library_loads() => WhisperTranscriber.CheckRuntime(RequireModel()).ShouldBeNull();
 
     [Fact]
     public void A_model_that_is_not_one_is_reported()
