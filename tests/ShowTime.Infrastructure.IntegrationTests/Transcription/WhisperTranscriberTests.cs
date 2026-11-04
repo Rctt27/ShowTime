@@ -89,7 +89,7 @@ public sealed class WhisperTranscriberTests
         using var cancel = new CancellationTokenSource();
 
         await Should.ThrowAsync<OperationCanceledException>(
-            new WhisperTranscriber().TranscribeAsync(Speech, model, "fr", _ => _ = cancel.CancelAsync(), cancel.Token));
+            new WhisperTranscriber().TranscribeAsync(Speech, model, "fr", progress => _ = cancel.CancelAsync(), cancel.Token));
 
         var words = await new WhisperTranscriber().TranscribeAsync(Speech, model, "fr", _ => { }, TestContext.Current.CancellationToken);
         words.Count.ShouldBeGreaterThanOrEqualTo(6);
