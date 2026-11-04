@@ -31,7 +31,11 @@ internal sealed class AppDelegate : NSApplicationDelegate
     public override NSApplicationTerminateReply ApplicationShouldTerminate(NSApplication sender) =>
         _services?.GetService<StatusMenu>()?.ShouldTerminate() ?? NSApplicationTerminateReply.Now;
 
-    public override void WillTerminate(NSNotification notification) => _services?.Dispose();
+    public override void WillTerminate(NSNotification notification)
+    {
+        _services?.GetService<ILogger<AppDelegate>>()?.LogInformation("ShowTime quits");
+        _services?.Dispose();
+    }
 
     protected override void Dispose(bool disposing)
     {

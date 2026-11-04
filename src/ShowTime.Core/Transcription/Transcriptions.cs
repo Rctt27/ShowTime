@@ -1,4 +1,5 @@
 using System.IO.Abstractions;
+using Microsoft.Extensions.Logging;
 using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
 using ShowTime.Core.Settings;
@@ -56,7 +57,8 @@ public sealed class TranscriptionJob
 /// <summary>
 /// Transcribes the microphone tracks of the recorded videos, one at a time, and writes each one's subtitles next to it.
 /// Whisper takes the processor: nothing is transcribed while a video is being recorded, and a transcription under way
-/// when a recording starts begins again afterwards. Every member is called on the UI thread.
+/// when a recording starts begins again afterwards. Every member is called on the UI thread. Each step of a transcription
+/// is logged, so that the log tells what ShowTime was doing when something went wrong.
 /// </summary>
 public sealed class Transcriptions : IDisposable
 {
@@ -69,6 +71,7 @@ public sealed class Transcriptions : IDisposable
     private readonly IFileSystem _fileSystem;
     private readonly IRecordingStatus _recording;
     private readonly IUiThread _uiThread;
+    private readonly ILogger<Transcriptions> _log;
     private readonly List<TranscriptionJob> _waiting = [];
     private TranscriptionJob? _running;
     private CancellationTokenSource? _cancel;
@@ -76,7 +79,8 @@ public sealed class Transcriptions : IDisposable
 
     public Transcriptions(
         ITranscriber transcriber, IAudioExtractor extractor, MicrophoneTracks tracks, TranscriptionModelLocator models,
-        AppSettings settings, SubtitleFile subtitles, IFileSystem fileSystem, IRecordingStatus recording, IUiThread uiThread)
+        AppSettings settings, SubtitleFile subtitles, IFileSystem fileSystem, IRecordingStatus recording, IUiThread uiThread,
+        ILogger<Transcriptions> log)
     {
         _transcriber = transcriber;
         _extractor = extractor;
@@ -87,6 +91,7 @@ public sealed class Transcriptions : IDisposable
         _fileSystem = fileSystem;
         _recording = recording;
         _uiThread = uiThread;
+        _log = log;
         recording.StateChanged += OnRecordingChanged;
     }
 
@@ -119,6 +124,8 @@ public sealed class Transcriptions : IDisposable
             _waiting.Remove(job);
             TryDelete(job.AudioPath);
             job.Update(TranscriptionState.Canceled);
+            if (_log.IsEnabled(LogLevel.Information))
+                _log.LogInformation("Transcription of {Video} canceled", Name(job));
         }
     }
 
@@ -166,6 +173,8 @@ public sealed class Transcriptions : IDisposable
             job.Update(TranscriptionState.Failed, error:
                 "Le modèle de transcription est introuvable : réinstallez ShowTime avec son dossier « models », " +
                 "ou indiquez un modèle dans les réglages.");
+            if (_log.IsEnabled(LogLevel.Warning))
+                _log.LogWarning("Transcription of {Video} failed: no Whisper model", Name(job));
             StartNext();
             return;
         }
@@ -174,9 +183,12 @@ public sealed class Transcriptions : IDisposable
         _running = job;
         _cancel = cancel;
         job.Update(TranscriptionState.Running);
+        if (_log.IsEnabled(LogLevel.Information))
+            _log.LogInformation("Transcription of {Video} started", Name(job));
 
         TranscriptionState outcome;
         string? error = null;
+        Exception? failure = null;
         IReadOnlyList<SubtitleCue>? cues = null;
         try
         {
@@ -216,7 +228,9 @@ public sealed class Transcriptions : IDisposable
         {
             outcome = TranscriptionState.Failed;
             error = "La transcription a échoué : " + ex.Message;
+            failure = ex;
         }
+        LogOutcome(job, outcome, cues?.Count ?? 0, failure);
 
         _running = null;
         _cancel = null;
@@ -224,6 +238,33 @@ public sealed class Transcriptions : IDisposable
         job.Update(outcome, error: error, cues: cues);
         StartNext();
     }
+
+    private void LogOutcome(TranscriptionJob job, TranscriptionState outcome, int cues, Exception? failure)
+    {
+        if (outcome == TranscriptionState.Failed)
+        {
+            if (_log.IsEnabled(LogLevel.Warning))
+                _log.LogWarning(failure, "Transcription of {Video} failed", Name(job));
+            return;
+        }
+        if (!_log.IsEnabled(LogLevel.Information))
+            return;
+        switch (outcome)
+        {
+            case TranscriptionState.Done:
+                _log.LogInformation("Transcription of {Video} done: {Count} subtitles", Name(job), cues);
+                break;
+            case TranscriptionState.Canceled:
+                _log.LogInformation("Transcription of {Video} canceled", Name(job));
+                break;
+            default:
+                _log.LogInformation("Transcription of {Video} interrupted by a recording; it starts again afterwards", Name(job));
+                break;
+        }
+    }
+
+    /// <summary>The video's file name: enough to follow it in the log, without the user's folders.</summary>
+    private static string Name(TranscriptionJob job) => Path.GetFileName(job.VideoPath);
 
     private void TryDelete(string path)
     {

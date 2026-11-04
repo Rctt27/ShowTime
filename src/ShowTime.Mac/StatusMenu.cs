@@ -1,6 +1,7 @@
 using AppKit;
 using AVFoundation;
 using Foundation;
+using Microsoft.Extensions.Logging;
 using ShowTime.Core.Capture;
 using ShowTime.Core.Hotkeys;
 using ShowTime.Core.Ports;
@@ -35,7 +36,9 @@ internal sealed class StatusMenu : IDisposable
     private readonly Transcriptions _transcriptions;
     private readonly List<VideoPreviewWindowController> _previews = [];
     private readonly Func<SettingsWindowController> _createSettingsWindow;
+    private readonly ILogger<StatusMenu> _log;
     private SettingsWindowController? _settingsWindow;
+    private bool _wasRecording;
 
     private readonly NSStatusItem _statusItem;
     private readonly NSMenuItem _regionItem;
@@ -48,7 +51,8 @@ internal sealed class StatusMenu : IDisposable
 
     public StatusMenu(AppSettings settings, CaptureWorkflow captures, IGlobalHotkeys hotkeys, IUserDialogs dialogs, IShell shell,
         MacEditorLauncher editor, INotifications notifications, RecordingSession video, IFileTrash trash,
-        SubtitleFile subtitles, Transcriptions transcriptions, Func<SettingsWindowController> createSettingsWindow)
+        SubtitleFile subtitles, Transcriptions transcriptions, Func<SettingsWindowController> createSettingsWindow,
+        ILogger<StatusMenu> log)
     {
         _settings = settings;
         _captures = captures;
@@ -62,6 +66,7 @@ internal sealed class StatusMenu : IDisposable
         _subtitles = subtitles;
         _transcriptions = transcriptions;
         _createSettingsWindow = createSettingsWindow;
+        _log = log;
 
         var menu = new NSMenu { AutoEnablesItems = false };
         menu.AddItem(new NSMenuItem("ShowTime " + Version) { Enabled = false });
@@ -184,9 +189,11 @@ internal sealed class StatusMenu : IDisposable
     /// </summary>
     private void OpenVideoPreview(string path, bool fullScreen, string? microphoneTrack, bool transcribe)
     {
+        if (_log.IsEnabled(LogLevel.Information))
+            _log.LogInformation("Video saved: {Name}", Path.GetFileName(path));
         var transcription = microphoneTrack is not null && transcribe ? _transcriptions.Enqueue(path, microphoneTrack) : null;
         var preview = new VideoPreviewWindowController(path, _shell, _trash, _subtitles, _transcriptions, transcription,
-            transcription is null ? microphoneTrack : null);
+            transcription is null ? microphoneTrack : null, _log);
         _previews.Add(preview);
         preview.RetakeRequested += (_, _) => Retake(preview, fullScreen);
         preview.Closed += (_, _) =>
@@ -215,6 +222,15 @@ internal sealed class StatusMenu : IDisposable
 
     private void UpdateVideoState()
     {
+        if (_video.IsRecording != _wasRecording)
+        {
+            _wasRecording = _video.IsRecording;
+            if (_wasRecording)
+                _log.LogInformation("Recording started");
+            else
+                _log.LogInformation("Recording stopped");
+        }
+
         // From the area selection on, a preview still playing would end up in the new video's sound.
         if (_video.IsBusy)
             foreach (var preview in _previews)
