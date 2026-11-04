@@ -14,21 +14,30 @@ namespace ShowTime.Mac.Platform;
 /// </summary>
 internal sealed class MacHangResponder(IAppPaths paths, ILogger<MacHangResponder> log) : IHangResponder
 {
-    private const string Wait = "Attendre";
     private const string ForceQuit = "Forcer l'arrêt";
+    /// <summary>What the script prints for <see cref="ForceQuit"/>: ASCII, whatever osascript's output encoding.</summary>
+    private const string QuitAnswer = "quit";
     private static readonly TimeSpan SampleTimeout = TimeSpan.FromSeconds(15);
     private static readonly TimeSpan FfmpegGrace = TimeSpan.FromSeconds(5);
 
     private readonly Lock _gate = new();
     private Process? _dialog;
+    private Task _sampling = Task.CompletedTask;
+    /// <summary>The main thread answered since the hang was reported: no dialog may stay open for it.</summary>
+    private bool _over;
 
     public void Hung(TimeSpan silence, bool first)
     {
         if (log.IsEnabled(LogLevel.Warning))
             log.LogWarning("The main thread has not answered for {Seconds:F0} s", silence.TotalSeconds);
-        if (first)
-            Sample();
-        if (Ask(silence) == ForceQuit)
+        lock (_gate)
+        {
+            _over = false;
+            // Sampling takes 3 s or more: it runs beside the dialog rather than before it.
+            if (first)
+                _sampling = Task.Run(Sample);
+        }
+        if (Ask(silence) == QuitAnswer)
             Quit();
     }
 
@@ -36,17 +45,11 @@ internal sealed class MacHangResponder(IAppPaths paths, ILogger<MacHangResponder
     {
         if (log.IsEnabled(LogLevel.Information))
             log.LogInformation("The main thread answers again after {Seconds:F0} s", silence.TotalSeconds);
-        // The question no longer stands: the dialog closes by itself.
+        // The question no longer stands: the dialog closes by itself, or does not open.
         lock (_gate)
         {
-            try
-            {
-                _dialog?.Kill();
-            }
-            catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
-            {
-                // Already closed.
-            }
+            _over = true;
+            Close(_dialog);
         }
     }
 
@@ -67,7 +70,10 @@ internal sealed class MacHangResponder(IAppPaths paths, ILogger<MacHangResponder
         }
     }
 
-    /// <returns>The button clicked; null when the dialog was closed by <see cref="Recovered"/> or could not open.</returns>
+    /// <returns>
+    /// <see cref="QuitAnswer"/> when "Forcer l'arrêt" was clicked; anything else when it was not, or the dialog was
+    /// closed by <see cref="Recovered"/>, or could not open.
+    /// </returns>
     private string? Ask(TimeSpan silence)
     {
         var seconds = silence.TotalSeconds.ToString("F0", CultureInfo.InvariantCulture);
@@ -78,8 +84,9 @@ internal sealed class MacHangResponder(IAppPaths paths, ILogger<MacHangResponder
         [
             "on run argv",
             "activate",
-            $"display dialog (item 1 of argv) with title \"ShowTime\" buttons {{\"{Wait}\", \"{ForceQuit}\"}} default button \"{Wait}\" with icon caution",
-            "return button returned of result",
+            $"display dialog (item 1 of argv) with title \"ShowTime\" buttons {{\"Attendre\", \"{ForceQuit}\"}} default button \"Attendre\" with icon caution",
+            $"if button returned of result is \"{ForceQuit}\" then return \"{QuitAnswer}\"",
+            "return \"wait\"",
             "end run"
         ];
         foreach (var line in script)
@@ -90,6 +97,12 @@ internal sealed class MacHangResponder(IAppPaths paths, ILogger<MacHangResponder
         // The message comes as an argument, never inside the script: no quoting to get wrong.
         start.ArgumentList.Add(message);
 
+        lock (_gate)
+        {
+            // Answered while sampling or logging: nothing to ask.
+            if (_over)
+                return null;
+        }
         Process? dialog;
         try
         {
@@ -103,7 +116,13 @@ internal sealed class MacHangResponder(IAppPaths paths, ILogger<MacHangResponder
         if (dialog is null)
             return null;
         lock (_gate)
-            _dialog = dialog;
+        {
+            // Answered while the dialog was starting: it closes at once.
+            if (_over)
+                Close(dialog);
+            else
+                _dialog = dialog;
+        }
         try
         {
             var answer = dialog.StandardOutput.ReadToEnd().Trim();
@@ -118,9 +137,26 @@ internal sealed class MacHangResponder(IAppPaths paths, ILogger<MacHangResponder
         }
     }
 
+    private static void Close(Process? dialog)
+    {
+        try
+        {
+            dialog?.Kill();
+        }
+        catch (Exception ex) when (ex is InvalidOperationException or Win32Exception)
+        {
+            // Already closed.
+        }
+    }
+
     private void Quit()
     {
         log.LogWarning("Forced to quit by the user");
+        // The report of where ShowTime was stuck is finished first: it is what explains the hang afterwards.
+        Task sampling;
+        lock (_gate)
+            sampling = _sampling;
+        sampling.Wait(SampleTimeout);
         var pid = Environment.ProcessId.ToString(CultureInfo.InvariantCulture);
         // ffmpeg ends a recording on SIGINT as on "q": it writes the MP4's index, and the video stays readable.
         Run("/usr/bin/pkill", ["-INT", "-P", pid, "-x", "ffmpeg"], TimeSpan.FromSeconds(2));

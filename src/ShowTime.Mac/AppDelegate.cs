@@ -29,9 +29,10 @@ internal sealed class AppDelegate : NSApplicationDelegate
         _services.GetRequiredService<StatusMenu>();
         _services.GetRequiredService<HangWatchdog>().Start();
 
-        // "open -a ShowTime --args --test-hang": the main thread freezes for a minute, to check the watchdog by hand.
+        // "open -a ShowTime --args --test-hang": 15 s after launch, time enough to open ShowTime's menu or start a
+        // recording, the main thread freezes for a minute, to check the watchdog by hand.
         if (NSProcessInfo.ProcessInfo.Arguments.Contains("--test-hang"))
-            DispatchQueue.MainQueue.DispatchAfter(new DispatchTime(DispatchTime.Now, TimeSpan.FromSeconds(5)),
+            DispatchQueue.MainQueue.DispatchAfter(new DispatchTime(DispatchTime.Now, TimeSpan.FromSeconds(15)),
                 () => Thread.Sleep(TimeSpan.FromMinutes(1)));
     }
 

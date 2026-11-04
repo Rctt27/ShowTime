@@ -76,7 +76,8 @@ internal static class Composition
         services.AddSingleton<DiagnosticsReport>();
         // A frozen main thread is noticed, recorded, and the user offered to force ShowTime to quit.
         services.AddSingleton<IHangResponder, MacHangResponder>();
-        services.AddSingleton<HangWatchdog>();
+        services.AddSingleton(sp => new HangWatchdog(sp.GetRequiredService<TimeProvider>(), new RunLoopMainThread(),
+            sp.GetRequiredService<IHangResponder>()));
 
         // macOS adapters
         services.AddSingleton<IUiThread>(new MainThread());
