@@ -183,8 +183,9 @@ public sealed class HighlightOverlayTests : IDisposable
         Yellow(0, 20).ShouldBe(0);
         // The new end, below the first part.
         Yellow(120, 170).ShouldBeGreaterThan(50);
-        // At 90 %, the opacity before the last change, the red would be about 230.
-        Enumerable.Range(0, area.Width * area.Height).Max(i => (int)frame[i * 3]).ShouldBeLessThan(140);
+        // At 90 %, the opacity before the last change, the trail's red would be about 230. Only the trail's pixels count:
+        // gdigrab draws the cursor, which another test may have moved into the area, white.
+        Enumerable.Range(0, area.Width * area.Height).Where(i => frame[i * 3 + 2] < 30).Max(i => (int)frame[i * 3]).ShouldBeLessThan(140);
     }
 
     /// <summary>The frame at 1 s, as RGB bytes.</summary>
