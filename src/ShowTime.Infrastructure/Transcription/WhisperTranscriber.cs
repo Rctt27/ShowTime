@@ -38,12 +38,24 @@ public sealed class WhisperTranscriber : ITranscriber
                 .WithMaxSegmentLength(1)
                 .WithProgressHandler(percent => onProgress(percent / 100.0));
             builder = language == "auto" ? builder.WithLanguageDetection() : builder.WithLanguage(language);
-            using var processor = builder.Build();
+            // Cancelled, Whisper.net stops waiting at once while whisper.cpp still runs on its own thread: its
+            // asynchronous disposal waits for whisper.cpp to stop, and only then does the factory free the model. The
+            // synchronous one would throw "Cannot dispose while processing", and the model be freed under whisper.cpp.
+            await using var processor = builder.Build();
             await using var audio = File.OpenRead(audioPath);
 
             var words = new List<TranscribedWord>();
-            await foreach (var segment in processor.ProcessAsync(audio, cancellationToken))
-                words.Add(new TranscribedWord(segment.Start, segment.End, segment.Text));
+            try
+            {
+                await foreach (var segment in processor.ProcessAsync(audio, cancellationToken))
+                    words.Add(new TranscribedWord(segment.Start, segment.End, segment.Text));
+            }
+            finally
+            {
+                // A cancellation may resume this code on the thread that cancelled, the UI thread when a video is
+                // deleted: the wait for whisper.cpp and the freeing of the model happen on the thread pool instead.
+                await Task.Yield();
+            }
             return (IReadOnlyList<TranscribedWord>)words;
         }, cancellationToken);
     }
