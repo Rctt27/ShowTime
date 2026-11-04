@@ -43,8 +43,9 @@ pour de futures options graphiques.
 - La fluidité des courbes est prioritaire, pour les gestes d'entourage.
 - Le trait est réglable par chaque utilisateur, dans une **fenêtre native** ouverte depuis les réglages, et non dans la
   page HTML.
-- Les valeurs par défaut sont celles du prototype : largeur 18 px, 35 % à grande vitesse, vitesse « rapide »
-  2 500 px/s, douceur 60 ms, fluidité 25 ms, effilements 24 et 48 px, pointes à 25 %, opacité 45 %.
+- Les valeurs par défaut sont celles que l'utilisateur a retenues dans le prototype : largeur 7 px, 32 % à grande
+  vitesse, vitesse « rapide » 3 900 px/s, douceur 180 ms, fluidité 25 ms, effilements 24 et 48 px, pointes à 25 %,
+  opacité 45 %.
 
 **Les miennes** (marquées comme telles, à corriger au besoin)
 - La géométrie du trait est entièrement dans le cœur, partagée par les deux apps et testée. Les apps ne font que
