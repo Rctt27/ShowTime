@@ -57,10 +57,12 @@ Avec l'exe publié (`dotnet publish src/ShowTime.Windows -c Release -r win-x64 -
 - [ ] « Refaire » : la vidéo part dans la Corbeille et un nouvel enregistrement commence.
 - [ ] « Annuler » pendant l'enregistrement : aucun fichier ne reste.
 - [ ] Pendant l'enregistrement, la barre montre « Surligner : maintenir Ctrl+Space ». Maintenir `Ctrl+Espace` en survolant un bouton : une traînée jaune translucide suit la souris, rien n'est tapé dans l'application ; au relâchement, elle reste 0,3 s puis s'estompe en une demi-seconde environ ; un texte surligné reste lisible.
+- [ ] Le trait : lent, il est large ; rapide, il s'affine ; un cercle tracé autour d'un bouton est fluide, sans angles ; ses bords sont lisses, sans frange rose ; là où il se croise, il ne fonce pas ; il commence fin et s'affine au relâchement.
 - [ ] Lâcher `Ctrl` avant `Espace` compte comme un relâchement : la traînée reste 0,3 s puis s'estompe, comme en lâchant `Espace`. `Espace` seul tape un espace dans un formulaire de la démo.
 - [ ] Pendant le compte à rebours et après « Arrêter », `Ctrl+Espace` ne surligne pas.
-- [ ] Dans le MP4 : la traînée est visible et son fondu fluide (`ffmpeg -i video.mp4 -vf fps=10 images/%03d.png`).
+- [ ] Dans le MP4 : la traînée est visible, ses largeurs et son fondu aussi (`ffmpeg -i video.mp4 -vf fps=10 images/%03d.png`).
 - [ ] Deux écrans et 150 % : la traînée est sous la souris, de la même épaisseur apparente ; hors de la zone, rien ne s'affiche.
+- [ ] Réglages › « Personnaliser le trait… » : maintenir le bouton gauche dans la zone trace comme pendant un enregistrement, sur la moitié claire et la sombre ; bouger un curseur pendant le tracé change le trait aussitôt ; « Valeurs par défaut » remet les valeurs ; « Annuler » ne change rien ; « OK » puis « Enregistrer » : l'enregistrement suivant porte ce trait, et il est retenu au prochain lancement. Pendant un enregistrement, le bouton est grisé.
 - [ ] Réglages : un bouton latéral de souris cliqué dans « Surligner (maintenir) » donne `XButton1`/`XButton2` ; en enregistrement, il surligne et un navigateur ne fait pas « Précédent ». `Espace` seul est accepté, avec l'avertissement sous le champ.
 
 ### Sous-titres
@@ -167,6 +169,8 @@ Le réglage « Après une capture » revient à « Ouvrir dans l'éditeur » (`"
 - [ ] Le cadre rouge et la barre n'apparaissent pas dans la vidéo.
 - [ ] Surlignage : pendant l'enregistrement (pas avant ni après), la barre montre « Surligner : maintenir Option+Space ». Maintenir `Option+Espace` en survolant un bouton : une traînée jaune translucide suit la souris, rien n'est tapé dans l'application ; au relâchement, elle reste 0,3 s puis s'estompe. Relâcher Option avant Espace compte comme un relâchement : même pause puis même fondu.
 - [ ] Dans le MP4 : la traînée et son fondu sont visibles ; avec deux écrans d'échelles différentes, la traînée est sous la souris sur l'écran enregistré.
+- [ ] Le trait : lent large, rapide fin, un cercle fluide, des bords lisses, pas plus foncé là où il se croise.
+- [ ] Réglages › « Personnaliser le trait… » s'ouvre en feuille : tracer dans la zone dessine le trait (il s'anime et s'estompe), un curseur le change aussitôt, « Valeurs par défaut », « Annuler » et « OK » puis « Enregistrer » font ce qu'ils disent. Pendant un enregistrement, le bouton est grisé.
 - [ ] Réglages : le champ « Surligner (maintenir) » prend une autre combinaison, accepte `Espace` seul (avec l'avertissement), et « Raccourcis par défaut » remet `Option+Space`.
 - [ ] « Enregistrer une vidéo (tout l'écran) » dans le menu ; puis, avec un second écran, une vidéo d'une zone sur le second écran : c'est bien cet écran qui est filmé.
 - [ ] `Ctrl+Maj+R` démarre (compte à rebours 3, 2, 1), `Ctrl+Maj+D` arrête ; « Annuler » n'enregistre rien.

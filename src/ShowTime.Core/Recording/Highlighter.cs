@@ -6,8 +6,9 @@ using ShowTime.Core.Settings;
 namespace ShowTime.Core.Recording;
 
 /// <summary>
-/// While a recording is under way, holding the trigger draws a translucent trail behind the mouse, which the video
-/// captures; releasing it fades the trail out. Every member is called on the UI thread.
+/// While a recording is under way, holding the trigger draws a brush stroke behind the mouse, which the video captures;
+/// releasing it fades the stroke out. The style is read from the settings on every frame, so that the settings window's
+/// preview, which runs a highlighter of its own, follows its sliders at once. Every member is called on the UI thread.
 /// </summary>
 public sealed class Highlighter(
     AppSettings settings, IHighlightInput input, IHighlightOverlayFactory overlays, IUiThread uiThread,
@@ -21,7 +22,13 @@ public sealed class Highlighter(
     private ITimer? _frames;
     private bool _registered;
     private bool _held;
+    private long _pressedAt;
     private long _releasedAt;
+
+    /// <summary>The stroke on the overlay, from which the next one's change is measured.</summary>
+    private IReadOnlyList<StrokeDisc> _drawn = [];
+
+    private double _opacity;
 
     /// <summary>Registers the trigger for a recording of <paramref name="area"/>.</summary>
     /// <returns>The trigger as the bar shows it, or null when it is empty, invalid or refused.</returns>
@@ -44,6 +51,7 @@ public sealed class Highlighter(
         _overlay?.Dispose();
         _overlay = null;
         _held = false;
+        _drawn = [];
     }
 
     public void Dispose() => Disable();
@@ -54,9 +62,12 @@ public sealed class Highlighter(
         if (_overlay is not { } overlay || _held)
             return;
         _held = true;
-        _trail.Begin(input.Cursor);
-        overlay.SetOpacity(HighlightTrail.FullOpacity);
-        overlay.Draw(_trail.Points);
+        _pressedAt = clock.GetTimestamp();
+        var style = settings.HighlightStyle.Clamped();
+        _trail.Begin(input.Cursor, TimeSpan.Zero);
+        _opacity = style.Opacity;
+        overlay.SetOpacity(_opacity);
+        Redraw(overlay, style);
         _frames ??= clock.CreateTimer(_ => uiThread.Post(OnFrame), null, FrameInterval, FrameInterval);
     }
 
@@ -64,28 +75,48 @@ public sealed class Highlighter(
     {
         if (_overlay is not { } overlay)
             return;
+        var style = settings.HighlightStyle.Clamped();
+        if (_held && !input.IsHeld)
+        {
+            _held = false;
+            _releasedAt = clock.GetTimestamp();
+        }
         if (_held)
         {
-            if (!input.IsHeld)
-            {
-                _held = false;
-                _releasedAt = clock.GetTimestamp();
-            }
-            else if (_trail.Add(input.Cursor))
-            {
-                overlay.Draw(_trail.Points);
-            }
+            _trail.Add(input.Cursor, clock.GetElapsedTime(_pressedAt));
+            SetOpacity(overlay, style.Opacity);
+            Redraw(overlay, style);
             return;
         }
 
-        var opacity = HighlightTrail.FadeOpacity(clock.GetElapsedTime(_releasedAt));
+        var opacity = HighlightTrail.FadeOpacity(clock.GetElapsedTime(_releasedAt), style.Opacity);
         if (opacity > 0)
         {
-            overlay.SetOpacity(opacity);
+            // Once released, the end tapers: the first frame of the fade redraws it, the others find nothing changed.
+            Redraw(overlay, style);
+            SetOpacity(overlay, opacity);
             return;
         }
         overlay.Hide();
+        _drawn = [];
         StopFrames();
+    }
+
+    /// <summary>Repaints what changed since the last stroke drawn, if anything did.</summary>
+    private void Redraw(IHighlightOverlay overlay, HighlightStyle style)
+    {
+        var stroke = BrushStroke.Build(_trail.Samples, style, overlay.Scale, lifted: !_held);
+        if (BrushStroke.Changed(_drawn, stroke) is { } changed)
+            overlay.Draw(stroke, changed);
+        _drawn = stroke;
+    }
+
+    private void SetOpacity(IHighlightOverlay overlay, double opacity)
+    {
+        if (opacity == _opacity)
+            return;
+        _opacity = opacity;
+        overlay.SetOpacity(opacity);
     }
 
     private void StopFrames()

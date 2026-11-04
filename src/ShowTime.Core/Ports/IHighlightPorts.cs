@@ -25,11 +25,18 @@ public interface IHighlightInput
 /// </summary>
 public interface IHighlightOverlay : IDisposable
 {
-    /// <summary>Shows the overlay if it is hidden and draws the trail, in screen pixels.</summary>
-    void Draw(IReadOnlyList<PixelPoint> points);
+    /// <summary>The scale of the screen holding the area: 1 at 100 %.</summary>
+    double Scale { get; }
+
+    /// <summary>
+    /// Shows the overlay if it is hidden and repaints <paramref name="changed"/>, in screen pixels, from the stroke: its
+    /// discs and the hull between each disc and the next (<see cref="BrushStroke.Hull"/>), opaque.
+    /// </summary>
+    void Draw(IReadOnlyList<StrokeDisc> stroke, PixelRect changed);
 
     void SetOpacity(double opacity);
 
+    /// <summary>Hides the overlay and clears what it drew.</summary>
     void Hide();
 }
 

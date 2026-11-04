@@ -3,14 +3,11 @@ using ShowTime.Core.Geometry;
 namespace ShowTime.Core.Recording;
 
 /// <summary>
-/// The mouse path drawn while the highlight trigger is held, like a highlighter stroke, and how it fades out once
-/// released.
+/// The mouse positions read while the highlight trigger is held, with the time each was read at, and how the trail fades
+/// out once released. <see cref="BrushStroke"/> turns them into the stroke.
 /// </summary>
 public sealed class HighlightTrail
 {
-    /// <summary>The overlay's opacity while the trigger is held: light enough to read the text it marks.</summary>
-    public const double FullOpacity = 0.25;
-
     /// <summary>About half a minute of continuous movement; beyond that the oldest quarter goes.</summary>
     public const int MaxPoints = 2000;
 
@@ -22,40 +19,41 @@ public sealed class HighlightTrail
 
     public static readonly TimeSpan FadeDuration = TimeSpan.FromMilliseconds(500);
 
-    private readonly List<PixelPoint> _points = [];
+    private readonly List<TrailSample> _samples = [];
 
-    public IReadOnlyList<PixelPoint> Points => _points;
+    public IReadOnlyList<TrailSample> Samples => _samples;
 
-    public void Begin(PixelPoint at)
+    /// <param name="time">Since the press.</param>
+    public void Begin(PixelPoint at, TimeSpan time)
     {
-        _points.Clear();
-        _points.Add(at);
+        _samples.Clear();
+        _samples.Add(new TrailSample(at, time));
     }
 
     /// <returns>False when the point is too close to the last one to change the drawing.</returns>
-    public bool Add(PixelPoint at)
+    public bool Add(PixelPoint at, TimeSpan time)
     {
-        if (_points.Count > 0)
+        if (_samples.Count > 0)
         {
-            var last = _points[^1];
+            var last = _samples[^1].Point;
             long dx = at.X - last.X, dy = at.Y - last.Y;
             if (dx * dx + dy * dy < MinStep * MinStep)
                 return false;
         }
-        _points.Add(at);
+        _samples.Add(new TrailSample(at, time));
         // A quarter at once: dropping the head repaints the whole overlay, which must stay rare.
-        if (_points.Count > MaxPoints)
-            _points.RemoveRange(0, MaxPoints / 4);
+        if (_samples.Count > MaxPoints)
+            _samples.RemoveRange(0, MaxPoints / 4);
         return true;
     }
 
     /// <summary>
-    /// <see cref="FullOpacity"/> for <see cref="FadeDelay"/>, then fast at first and gentle at the end: an ease-out to 0
-    /// over <see cref="FadeDuration"/>.
+    /// <paramref name="fullOpacity"/> for <see cref="FadeDelay"/>, then fast at first and gentle at the end: an ease-out
+    /// to 0 over <see cref="FadeDuration"/>.
     /// </summary>
-    public static double FadeOpacity(TimeSpan sinceRelease)
+    public static double FadeOpacity(TimeSpan sinceRelease, double fullOpacity)
     {
         var remaining = 1 - Math.Clamp((sinceRelease - FadeDelay) / FadeDuration, 0, 1);
-        return FullOpacity * remaining * remaining;
+        return fullOpacity * remaining * remaining;
     }
 }

@@ -1,0 +1,573 @@
+<!doctype html>
+<!--
+  ShowTime's highlight lab: tries stroke options before they are ported. The core (BrushStroke, HighlightStyle) is the
+  reference; this page may run ahead of it. Open it straight from the disk: it loads nothing from the network.
+-->
+<html lang="fr">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Labo du surlignage</title>
+<style>
+  :root {
+    --bg: #e9ecf1; --win: #ffffff; --side: #f5f6f8; --text: #1c2230; --muted: #5d6676; --line: #dde2e8;
+    --accent: #2f6fde; --accent-text: #ffffff; --panel: rgba(255, 255, 255, .96); --panel-line: #d4d9e0; --chip: #eef1f5;
+  }
+  :root[data-theme="dark"] {
+    --bg: #121418; --win: #1d2028; --side: #181b21; --text: #e6e9ef; --muted: #98a1b0; --line: #2c313b;
+    --accent: #6b9bff; --accent-text: #0e1320; --panel: rgba(28, 31, 38, .97); --panel-line: #353b47; --chip: #262a33;
+  }
+  * { box-sizing: border-box; }
+  html, body { margin: 0; height: 100%; }
+  body {
+    background: var(--bg); color: var(--text); font: 15px/1.5 "Segoe UI", system-ui, sans-serif;
+    user-select: none; -webkit-user-select: none; overflow: hidden;
+  }
+  /* The fake application the trail is drawn over. */
+  .app {
+    position: absolute; inset: 40px 380px 40px 40px; background: var(--win); border: 1px solid var(--line);
+    border-radius: 10px; display: grid; grid-template-columns: 200px 1fr; grid-template-rows: 44px 1fr; overflow: hidden;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .12);
+  }
+  .titlebar { grid-column: 1 / 3; display: flex; align-items: center; gap: 8px; padding: 0 16px; border-bottom: 1px solid var(--line); }
+  .titlebar i { width: 12px; height: 12px; border-radius: 50%; background: var(--line); display: inline-block; }
+  .titlebar span { margin-left: 12px; color: var(--muted); font-size: 13px; }
+  .side { background: var(--side); border-right: 1px solid var(--line); padding: 18px 12px; }
+  .side div { padding: 7px 12px; border-radius: 6px; color: var(--muted); margin-bottom: 2px; }
+  .side div.on { background: var(--chip); color: var(--text); font-weight: 600; }
+  .main { padding: 28px 36px; overflow: hidden; }
+  .main h1 { font-size: 24px; margin: 0 0 6px; }
+  .main p { margin: 0 0 14px; max-width: 62ch; color: var(--muted); }
+  .main p strong { color: var(--text); }
+  .actions { display: flex; gap: 10px; margin: 18px 0 26px; }
+  .btn { padding: 8px 16px; border-radius: 7px; border: 1px solid var(--line); background: var(--win); font-weight: 600; }
+  .btn.primary { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+  table { border-collapse: collapse; width: 100%; max-width: 720px; font-size: 14px; }
+  th, td { text-align: left; padding: 9px 12px; border-bottom: 1px solid var(--line); }
+  th { color: var(--muted); font-weight: 600; }
+  .tag { padding: 2px 8px; border-radius: 10px; background: var(--chip); font-size: 12px; }
+
+  canvas { position: fixed; inset: 0; pointer-events: none; }
+  #trail { z-index: 1; }
+  #dots { z-index: 2; }
+
+  .panel {
+    position: fixed; z-index: 3; top: 40px; right: 24px; bottom: 40px; width: 330px; overflow-y: auto;
+    background: var(--panel); border: 1px solid var(--panel-line); border-radius: 10px; padding: 16px 18px;
+    box-shadow: 0 10px 40px rgba(0, 0, 0, .18); font-size: 13px;
+  }
+  .panel h2 { font-size: 15px; margin: 0 0 4px; }
+  .hint { color: var(--muted); margin: 0 0 14px; }
+  .row { margin-bottom: 12px; }
+  .row label { display: flex; justify-content: space-between; gap: 8px; }
+  .row output { font-variant-numeric: tabular-nums; color: var(--muted); }
+  .row small { display: block; color: var(--muted); font-size: 11.5px; line-height: 1.35; }
+  input[type=range] { width: 100%; margin: 4px 0 0; accent-color: var(--accent); }
+  .toggles { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 14px; }
+  .toggles button, .buttons button {
+    font: inherit; padding: 5px 10px; border-radius: 6px; border: 1px solid var(--panel-line); background: var(--chip);
+    color: var(--text); cursor: pointer;
+  }
+  .toggles button[aria-pressed="true"] { background: var(--accent); color: var(--accent-text); border-color: transparent; }
+  .buttons { display: flex; gap: 6px; margin-top: 6px; }
+  .readout { font-variant-numeric: tabular-nums; color: var(--muted); margin: 0 0 12px; min-height: 1.5em; }
+  textarea {
+    width: 100%; height: 150px; margin-top: 10px; font: 11.5px/1.4 Consolas, monospace; background: var(--chip);
+    color: var(--text); border: 1px solid var(--panel-line); border-radius: 6px; padding: 8px; display: none;
+  }
+</style>
+</head>
+<body>
+<div class="app" aria-hidden="true">
+  <div class="titlebar"><i></i><i></i><i></i><span>Atelier : lancement de la version 2</span></div>
+  <div class="side">
+    <div>Accueil</div><div class="on">Projets</div><div>Équipe</div><div>Calendrier</div><div>Réglages</div>
+  </div>
+  <div class="main">
+    <h1>Nouvelle page de paiement</h1>
+    <p>Le parcours passe de cinq écrans à deux. <strong>Le récapitulatif de commande reste visible</strong> pendant la
+      saisie de la carte, et l'adresse de livraison est proposée à partir de la dernière commande.</p>
+    <p>Les tests utilisateurs montrent un temps moyen de <strong>48 secondes</strong> contre 2 min 10 auparavant.
+      Le taux d'abandon au moment du paiement baisse de 31 %.</p>
+    <div class="actions">
+      <span class="btn primary">Publier la page</span><span class="btn">Prévisualiser</span><span class="btn">Annuler</span>
+    </div>
+    <table>
+      <tr><th>Tâche</th><th>Responsable</th><th>Échéance</th><th>État</th></tr>
+      <tr><td>Maquettes validées</td><td>Camille</td><td>12 nov.</td><td><span class="tag">Terminé</span></td></tr>
+      <tr><td>Intégration du prestataire</td><td>Yanis</td><td>18 nov.</td><td><span class="tag">En cours</span></td></tr>
+      <tr><td>Tests de charge</td><td>Inès</td><td>22 nov.</td><td><span class="tag">À faire</span></td></tr>
+      <tr><td>Mise en production</td><td>Équipe</td><td>28 nov.</td><td><span class="tag">À faire</span></td></tr>
+    </table>
+  </div>
+</div>
+
+<canvas id="trail"></canvas>
+<canvas id="dots"></canvas>
+
+<aside class="panel" id="panel">
+  <h2>Traînée « coup de pinceau »</h2>
+  <p class="hint">Maintenez le bouton gauche (ou Espace) et tracez sur l'application. Comme dans ShowTime, la position
+    est relevée toutes les 16 ms, puis le trait reste 0,3 s et s'estompe en 0,5 s.</p>
+  <div class="toggles">
+    <button id="before" aria-pressed="false" title="La traînée actuelle de ShowTime, pour comparer">Avant</button>
+    <button id="dark" aria-pressed="false">Sombre</button>
+    <button id="showDots" aria-pressed="false" title="Les positions relevées à 60 Hz">Échantillons</button>
+  </div>
+  <p class="readout" id="readout"></p>
+  <div id="sliders"></div>
+  <div class="buttons">
+    <button id="copy">Copier les valeurs</button>
+    <button id="reset">Valeurs par défaut</button>
+  </div>
+  <textarea id="values" readonly></textarea>
+</aside>
+
+<script>
+"use strict";
+
+// ---- Constants mirrored from ShowTime (HighlightTrail, Highlighter) ----
+const FrameInterval = 16;          // ms, Highlighter.FrameInterval
+const MinStep = 2;                 // px, HighlightTrail.MinStep
+const MaxPoints = 2000;            // HighlightTrail.MaxPoints
+const FadeDelay = 300;             // ms
+const FadeDuration = 500;          // ms
+const Step = 3;                    // px at 100 %, the longest step between two discs along the curve
+const AntialiasMargin = 2;         // px around a change, for the antialiased edge
+const Ink = "#FFD400";
+const BeforeThickness = 14.4;      // the current trail, for comparison
+const BeforeOpacity = 0.25;
+
+// ---- Tunable values: what the sliders set, and what becomes the C# constants ----
+const Defaults = {
+  thickness: 7, minRatio: 0.32, fastSpeed: 3900, smoothing: 180, fluidity: 25,
+  startTaper: 24, endTaper: 48, taperFloor: 0.25, opacity: 0.45
+};
+const Sliders = [
+  { key: "thickness", label: "Largeur au repos", min: 3, max: 40, step: 0.5, unit: "px", help: "Largeur quand la souris va lentement, à 100 %." },
+  { key: "minRatio", label: "Largeur à grande vitesse", min: 0.1, max: 1, step: 0.01, unit: "%", help: "Part de la largeur au repos qui reste quand la souris va vite. 100 % : pas d'affinement." },
+  { key: "fastSpeed", label: "Vitesse « rapide »", min: 300, max: 6000, step: 100, unit: "px/s", help: "Vitesse à laquelle le trait atteint sa largeur minimale. Plus bas : il s'affine plus tôt." },
+  { key: "smoothing", label: "Douceur des variations", min: 0, max: 300, step: 5, unit: "ms", help: "Temps que met la largeur à suivre la vitesse. 0 : elle suit à chaque relevé." },
+  { key: "fluidity", label: "Fluidité des courbes", min: 0, max: 80, step: 1, unit: "ms", help: "Lisse la trajectoire : chaque changement de direction devient progressif, comme la main sur un pinceau. Le bout reste sous la souris. 0 : le trait passe exactement par chaque relevé." },
+  { key: "startTaper", label: "Effilement du début", min: 0, max: 120, step: 1, unit: "px", help: "Longueur sur laquelle le trait s'élargit en partant, comme un pinceau qui se pose. 0 : aucun." },
+  { key: "endTaper", label: "Effilement de fin", min: 0, max: 200, step: 1, unit: "px", help: "Longueur sur laquelle le trait s'affine au relâchement, comme un pinceau qui se lève. 0 : aucun." },
+  { key: "taperFloor", label: "Finesse des pointes", min: 0, max: 1, step: 0.01, unit: "%", help: "Largeur des bouts effilés, en part de la largeur. 0 % : une pointe fine." },
+  { key: "opacity", label: "Opacité", min: 0.1, max: 1, step: 0.01, unit: "%", help: "Plus haut : plus couvrant, moins lisible au travers." }
+];
+let params = { ...Defaults };
+try { Object.assign(params, JSON.parse(localStorage.getItem("highlight-lab") || "{}")); } catch { /* defaults */ }
+
+// ---- The stroke, as BrushStroke will compute it in the core ----
+
+const easeOut = x => x * (2 - x);
+const dist = (a, b) => Math.hypot(b.x - a.x, b.y - a.y);
+const lerp = (a, b, s) => ({ x: a.x + (b.x - a.x) * s, y: a.y + (b.y - a.y) * s });
+
+/** The width at each sample, in physical pixels: thinner when the mouse is fast, eased over time. */
+function sampleWidths(samples, scale) {
+  const max = params.thickness * scale;
+  const widths = [max];
+  for (let i = 1; i < samples.length; i++) {
+    const a = samples[i - 1], b = samples[i];
+    const dt = Math.max(b.t - a.t, 1);
+    const speed = dist(a, b) / scale / (dt / 1000);  // pixels at 100 % per second
+    const target = max * (1 - (1 - params.minRatio) * easeOut(Math.min(speed / params.fastSpeed, 1)));
+    const k = params.smoothing > 0 ? 1 - Math.exp(-dt / params.smoothing) : 1;
+    widths.push(widths[i - 1] + (target - widths[i - 1]) * k);
+  }
+  return widths;
+}
+
+/**
+ * The path eased like a hand on a brush: each sample becomes the Gaussian-weighted mean of its neighbours in time.
+ * The samples are cut into stretches wherever nothing was read for longer than 3 sigma (a pause), and each stretch is
+ * eased on its own, with a symmetric window that shrinks near its ends: the stroke still starts at the press, ends
+ * under the mouse without lag, and keeps a sharp corner where the hand stopped. The newest part settles as later
+ * samples arrive.
+ */
+function smoothSamples(samples) {
+  const sigma = params.fluidity;
+  const n = samples.length;
+  if (sigma <= 0 || n < 3) return samples;
+  const out = [];
+  let start = 0;
+  for (let end = 1; end <= n; end++) {
+    if (end < n && samples[end].t - samples[end - 1].t <= 3 * sigma) continue;
+    out.push(...smoothStretch(samples.slice(start, end), sigma));
+    start = end;
+  }
+  return out;
+}
+
+function smoothStretch(samples, sigma) {
+  const n = samples.length;
+  const first = samples[0].t, last = samples[n - 1].t;
+  return samples.map((s, i) => {
+    const half = Math.min(3 * sigma, s.t - first, last - s.t);
+    let x = 0, y = 0, total = 0;
+    const add = p => {
+      const d = p.t - s.t, w = Math.exp(-d * d / (2 * sigma * sigma));
+      x += p.x * w; y += p.y * w; total += w;
+    };
+    for (let j = i; j >= 0 && s.t - samples[j].t <= half; j--) add(samples[j]);
+    for (let j = i + 1; j < n && samples[j].t - s.t <= half; j++) add(samples[j]);
+    return { x: x / total, y: y / total, t: s.t };
+  });
+}
+
+/** Centripetal Catmull-Rom (Barry and Goldman), between p1 and p2, at u in [0, 1]. */
+function catmullRom(p0, p1, p2, p3, u) {
+  const knot = (a, b) => Math.max(Math.sqrt(dist(a, b)), 1e-3);
+  const t1 = knot(p0, p1), t2 = t1 + knot(p1, p2), t3 = t2 + knot(p2, p3);
+  const t = t1 + (t2 - t1) * u;
+  const a1 = lerp(p0, p1, t / t1);
+  const a2 = lerp(p1, p2, (t - t1) / (t2 - t1));
+  const a3 = lerp(p2, p3, (t - t2) / (t3 - t2));
+  const b1 = lerp(a1, a2, t / t2);
+  const b2 = lerp(a2, a3, (t - t1) / (t3 - t1));
+  return lerp(b1, b2, (t - t1) / (t2 - t1));
+}
+
+/** The smoothed path through the samples, a point at most Step apart, with the width interpolated. */
+function centerline(samples, widths, scale) {
+  const n = samples.length;
+  const line = [{ x: samples[0].x, y: samples[0].y, w: widths[0] }];
+  const reflect = (p, q) => ({ x: 2 * p.x - q.x, y: 2 * p.y - q.y });
+  for (let i = 0; i < n - 1; i++) {
+    const p0 = i > 0 ? samples[i - 1] : reflect(samples[0], samples[1]);
+    const p3 = i + 2 < n ? samples[i + 2] : reflect(samples[n - 1], samples[n - 2]);
+    const p1 = samples[i], p2 = samples[i + 1];
+    const parts = Math.max(1, Math.ceil(dist(p1, p2) / (Step * scale)));
+    for (let j = 1; j <= parts; j++) {
+      const u = j / parts;
+      const p = catmullRom(p0, p1, p2, p3, u);
+      line.push({ x: p.x, y: p.y, w: widths[i] + (widths[i + 1] - widths[i]) * u });
+    }
+  }
+  return line;
+}
+
+/** From floorWidth at 0 to the full width at 1 and beyond. */
+const taper = x => params.taperFloor + (1 - params.taperFloor) * easeOut(Math.min(Math.max(x, 0), 1));
+
+/** The discs whose union with their hulls is the stroke, in physical pixels. */
+function buildStroke(samples, scale, lifted) {
+  if (samples.length === 0) return [];
+  const path = smoothSamples(samples);
+  const line = centerline(path, sampleWidths(path, scale), scale);
+  const lengths = [0];
+  for (let i = 1; i < line.length; i++) lengths.push(lengths[i - 1] + dist(line[i - 1], line[i]));
+  const total = lengths[lengths.length - 1];
+  const start = params.startTaper * scale;
+  const end = lifted ? Math.min(params.endTaper * scale, total / 2) : 0;
+  return line.map((p, i) => {
+    let f = 1;
+    if (start > 0) f *= taper(lengths[i] / start);
+    if (end > 0) f *= taper((total - lengths[i]) / end);
+    return { x: p.x, y: p.y, r: p.w / 2 * f };
+  });
+}
+
+/** The quadrilateral between the outer tangents of two discs, or null when one holds the other. */
+function hull(a, b) {
+  const d = dist(a, b);
+  if (d <= Math.abs(a.r - b.r)) return null;
+  const ux = (b.x - a.x) / d, uy = (b.y - a.y) / d;
+  const along = (a.r - b.r) / d, across = Math.sqrt(1 - along * along);
+  const m1 = { x: ux * along - uy * across, y: uy * along + ux * across };
+  const m2 = { x: ux * along + uy * across, y: uy * along - ux * across };
+  return [
+    { x: a.x + a.r * m1.x, y: a.y + a.r * m1.y }, { x: b.x + b.r * m1.x, y: b.y + b.r * m1.y },
+    { x: b.x + b.r * m2.x, y: b.y + b.r * m2.y }, { x: a.x + a.r * m2.x, y: a.y + a.r * m2.y }
+  ];
+}
+
+const boxOf = d => ({ l: d.x - d.r, t: d.y - d.r, r: d.x + d.r, b: d.y + d.r });
+const union = (p, q) => p ? { l: Math.min(p.l, q.l), t: Math.min(p.t, q.t), r: Math.max(p.r, q.r), b: Math.max(p.b, q.b) } : q;
+const intersects = (p, q) => p.l < q.r && q.l < p.r && p.t < q.b && q.t < p.b;
+
+/** What changed between two strokes: the discs from the last one they share, as a pixel rectangle, or null. */
+function changed(previous, current) {
+  let k = 0;
+  while (k < previous.length && k < current.length
+    && previous[k].x === current[k].x && previous[k].y === current[k].y && previous[k].r === current[k].r) k++;
+  if (k === previous.length && k === current.length) return null;
+  let box = null;
+  for (const discs of [previous, current])
+    for (let i = Math.max(k - 1, 0); i < discs.length; i++) box = union(box, boxOf(discs[i]));
+  return {
+    l: Math.floor(box.l) - AntialiasMargin, t: Math.floor(box.t) - AntialiasMargin,
+    r: Math.ceil(box.r) + AntialiasMargin, b: Math.ceil(box.b) + AntialiasMargin
+  };
+}
+
+/** Repaints the stroke inside the rectangle only, opaque: the canvas's opacity makes it translucent, as the window's. */
+function paint(ctx, discs, dirty) {
+  ctx.save();
+  ctx.beginPath();
+  ctx.rect(dirty.l, dirty.t, dirty.r - dirty.l, dirty.b - dirty.t);
+  ctx.clip();
+  ctx.clearRect(dirty.l, dirty.t, dirty.r - dirty.l, dirty.b - dirty.t);
+  ctx.fillStyle = Ink;
+  for (let i = 0; i < discs.length; i++) {
+    const a = discs[i], b = discs[i + 1];
+    if (!intersects(b ? union(boxOf(a), boxOf(b)) : boxOf(a), dirty)) continue;
+    ctx.beginPath();
+    ctx.arc(a.x, a.y, a.r, 0, Math.PI * 2);
+    ctx.fill();
+    const q = b && hull(a, b);
+    if (q) {
+      ctx.beginPath();
+      ctx.moveTo(q[0].x, q[0].y);
+      for (let j = 1; j < 4; j++) ctx.lineTo(q[j].x, q[j].y);
+      ctx.closePath();
+      ctx.fill();
+    }
+  }
+  ctx.restore();
+}
+
+/** The current trail: fixed width through the raw samples, without antialiasing. */
+function paintBefore(ctx, samples, scale) {
+  ctx.clearRect(0, 0, ctx.canvas.width, ctx.canvas.height);
+  if (samples.length === 0) return;
+  const width = BeforeThickness * scale;
+  ctx.fillStyle = ctx.strokeStyle = Ink;
+  ctx.lineWidth = width;
+  ctx.lineCap = ctx.lineJoin = "round";
+  ctx.beginPath();
+  if (samples.length === 1) {
+    ctx.arc(samples[0].x, samples[0].y, width / 2, 0, Math.PI * 2);
+    ctx.fill();
+  } else {
+    ctx.moveTo(samples[0].x, samples[0].y);
+    for (const s of samples.slice(1)) ctx.lineTo(s.x, s.y);
+    ctx.stroke();
+  }
+  // Hard edges, as the color-keyed window draws them.
+  let box = null;
+  for (const s of samples) box = union(box, { l: s.x, t: s.y, r: s.x, b: s.y });
+  const l = Math.max(0, Math.floor(box.l - width)), t = Math.max(0, Math.floor(box.t - width));
+  const w = Math.min(ctx.canvas.width, Math.ceil(box.r + width)) - l, h = Math.min(ctx.canvas.height, Math.ceil(box.b + width)) - t;
+  if (w <= 0 || h <= 0) return;
+  const image = ctx.getImageData(l, t, w, h);
+  for (let i = 3; i < image.data.length; i += 4) image.data[i] = image.data[i] >= 128 ? 255 : 0;
+  ctx.putImageData(image, l, t);
+}
+
+// ---- The session, as Highlighter runs it ----
+
+const trailCanvas = document.getElementById("trail");
+const dotsCanvas = document.getElementById("dots");
+const trail = trailCanvas.getContext("2d");
+const dots = dotsCanvas.getContext("2d");
+const readout = document.getElementById("readout");
+let scale = 1;
+let cursor = { x: 0, y: 0 };
+let samples = [];
+let drawn = [];
+let held = false, fading = false;
+let pressedAt = 0, releasedAt = 0;
+let before = false, showDots = false;
+
+const fullOpacity = () => before ? BeforeOpacity : params.opacity;
+const fadeOpacity = since => fullOpacity() * (1 - Math.min(Math.max((since - FadeDelay) / FadeDuration, 0), 1)) ** 2;
+
+function resize() {
+  scale = window.devicePixelRatio || 1;
+  for (const c of [trailCanvas, dotsCanvas]) {
+    c.width = Math.round(innerWidth * scale);
+    c.height = Math.round(innerHeight * scale);
+    c.style.width = innerWidth + "px";
+    c.style.height = innerHeight + "px";
+  }
+  drawn = [];
+  redraw(!held);
+}
+
+function redraw(lifted) {
+  if (before) {
+    paintBefore(trail, samples, scale);
+  } else {
+    const stroke = buildStroke(samples, scale, lifted);
+    const dirty = changed(drawn, stroke);
+    if (dirty) paint(trail, stroke, dirty);
+    drawn = stroke;
+  }
+  paintDots();
+}
+
+function paintDots() {
+  dots.clearRect(0, 0, dotsCanvas.width, dotsCanvas.height);
+  if (!showDots) return;
+  const mark = (points, color) => {
+    dots.fillStyle = color;
+    for (const p of points) {
+      dots.beginPath();
+      dots.arc(p.x, p.y, 2.5 * scale, 0, Math.PI * 2);
+      dots.fill();
+    }
+  };
+  // Red: where the mouse was read; blue: the same points once smoothed.
+  if (!before && params.fluidity > 0) mark(smoothSamples(samples), "#2f6fde");
+  mark(samples, "#e0245e");
+}
+
+function press() {
+  if (held) return;
+  held = true;
+  fading = false;
+  pressedAt = performance.now();
+  samples = [{ x: cursor.x, y: cursor.y, t: 0 }];
+  trailCanvas.style.opacity = fullOpacity();
+  redraw(false);
+}
+
+function release() {
+  if (!held) return;
+  held = false;
+  fading = true;
+  releasedAt = performance.now();
+  redraw(true);
+}
+
+function hide() {
+  fading = false;
+  samples = [];
+  drawn = [];
+  trail.clearRect(0, 0, trailCanvas.width, trailCanvas.height);
+  paintDots();
+}
+
+function addSample() {
+  const last = samples[samples.length - 1];
+  if (dist(last, cursor) < MinStep) return false;
+  samples.push({ x: cursor.x, y: cursor.y, t: performance.now() - pressedAt });
+  if (samples.length > MaxPoints) samples.splice(0, MaxPoints / 4);
+  return true;
+}
+
+function showReadout() {
+  if (samples.length < 2 || before) return;
+  const a = samples[samples.length - 2], b = samples[samples.length - 1];
+  const speed = dist(a, b) / scale / (Math.max(b.t - a.t, 1) / 1000);
+  const tip = drawn.length ? drawn[drawn.length - 1].r * 2 / scale : 0;
+  readout.textContent = `vitesse ${Math.round(speed)} px/s · largeur ${tip.toFixed(1)} px`;
+}
+
+setInterval(() => {
+  if (held) {
+    if (addSample()) {
+      redraw(false);
+      showReadout();
+    }
+  } else if (fading) {
+    const opacity = fadeOpacity(performance.now() - releasedAt);
+    if (opacity > 0) trailCanvas.style.opacity = opacity;
+    else hide();
+  }
+}, FrameInterval);
+
+const panel = document.getElementById("panel");
+// Like GetCursorPos, the timer reads where the mouse is now: the raw updates (Chrome, Edge) come at the mouse's own
+// rate, not aligned to the display's frames as pointermove is.
+const follow = e => { cursor = { x: e.clientX * scale, y: e.clientY * scale }; };
+addEventListener("pointerrawupdate", follow);
+addEventListener("pointermove", follow);
+addEventListener("pointerdown", e => {
+  if (e.button !== 0 || panel.contains(e.target)) return;
+  cursor = { x: e.clientX * scale, y: e.clientY * scale };
+  press();
+});
+addEventListener("pointerup", e => { if (e.button === 0) release(); });
+addEventListener("blur", release);
+addEventListener("keydown", e => {
+  if (e.code !== "Space") return;
+  e.preventDefault();
+  if (!e.repeat) press();
+});
+addEventListener("keyup", e => { if (e.code === "Space") release(); });
+addEventListener("resize", resize);
+
+// ---- Panel ----
+
+const format = (s, v) => s.unit === "%" ? `${Math.round(v * 100)} %` : `${v} ${s.unit}`;
+const sliderBox = document.getElementById("sliders");
+const inputs = {};
+for (const s of Sliders) {
+  const row = document.createElement("div");
+  row.className = "row";
+  row.innerHTML = `<label><span>${s.label}</span><output></output></label><input type="range"><small>${s.help}</small>`;
+  const input = row.querySelector("input"), output = row.querySelector("output");
+  Object.assign(input, { min: s.min, max: s.max, step: s.step, value: params[s.key] });
+  output.textContent = format(s, params[s.key]);
+  input.addEventListener("input", () => {
+    params[s.key] = Number(input.value);
+    output.textContent = format(s, params[s.key]);
+    try { localStorage.setItem("highlight-lab", JSON.stringify(params)); } catch { /* not kept */ }
+    if (samples.length) {
+      if (!held && !fading) return;
+      if (held) trailCanvas.style.opacity = fullOpacity();
+      redraw(!held);
+    }
+  });
+  inputs[s.key] = { input, output, slider: s };
+  sliderBox.appendChild(row);
+}
+
+function toggle(id, apply) {
+  const button = document.getElementById(id);
+  button.addEventListener("click", () => {
+    const on = button.getAttribute("aria-pressed") !== "true";
+    button.setAttribute("aria-pressed", String(on));
+    apply(on);
+    button.blur();
+  });
+}
+toggle("before", on => { before = on; drawn = []; trail.clearRect(0, 0, trailCanvas.width, trailCanvas.height); readout.textContent = on ? "traînée actuelle : 14,4 px, 25 %, sans anticrénelage" : ""; });
+toggle("dark", on => { document.documentElement.dataset.theme = on ? "dark" : "light"; });
+toggle("showDots", on => { showDots = on; paintDots(); });
+
+const csharp = () => [
+  "// Values chosen in the prototype",
+  `public const double Thickness = ${params.thickness};`,
+  `public const double MinRatio = ${params.minRatio};`,
+  `public const double FastSpeed = ${params.fastSpeed};`,
+  `public static readonly TimeSpan WidthSmoothing = TimeSpan.FromMilliseconds(${params.smoothing});`,
+  `public static readonly TimeSpan PathSmoothing = TimeSpan.FromMilliseconds(${params.fluidity});`,
+  `public const double StartTaper = ${params.startTaper};`,
+  `public const double EndTaper = ${params.endTaper};`,
+  `public const double TaperFloor = ${params.taperFloor};`,
+  `public const double FullOpacity = ${params.opacity};`
+].join("\n");
+
+document.getElementById("copy").addEventListener("click", async e => {
+  const text = csharp();
+  const area = document.getElementById("values");
+  area.value = text;
+  area.style.display = "block";
+  try {
+    await navigator.clipboard.writeText(text);
+    e.target.textContent = "Copié";
+  } catch {
+    area.select();
+    e.target.textContent = "Copiez le texte ci-dessous";
+  }
+  setTimeout(() => { e.target.textContent = "Copier les valeurs"; }, 2000);
+  e.target.blur();
+});
+
+document.getElementById("reset").addEventListener("click", e => {
+  params = { ...Defaults };
+  try { localStorage.removeItem("highlight-lab"); } catch { /* nothing kept */ }
+  for (const { input, output, slider } of Object.values(inputs)) {
+    input.value = params[slider.key];
+    output.textContent = format(slider, params[slider.key]);
+  }
+  e.target.blur();
+});
+
+resize();
+</script>
+</body>
+</html>

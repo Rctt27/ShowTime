@@ -65,6 +65,9 @@ public sealed class AppSettings
     /// <summary>Held during a recording to highlight with the mouse: a shortcut, a plain key, or XButton1/XButton2.</summary>
     public string HighlightTrigger { get; set; }
 
+    /// <summary>The stroke the trail is drawn with, tuned in the settings window.</summary>
+    public HighlightStyle HighlightStyle { get; set; } = HighlightStyle.Default;
+
     /// <summary>Empty: the ffmpeg shipped with ShowTime, then the one on the PATH.</summary>
     public string FfmpegPath { get; set; } = "";
 

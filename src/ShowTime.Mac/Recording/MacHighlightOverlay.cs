@@ -3,14 +3,16 @@ using CoreGraphics;
 using ShowTime.Core.Geometry;
 using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
+using ShowTime.Core.Settings;
 using ShowTime.Mac.Platform;
 
 namespace ShowTime.Mac.Recording;
 
 /// <summary>
 /// The highlight trail over the recorded area: a transparent window that clicks go through, above every other one, and
-/// on purpose not excluded from capture, unlike the red frame: ffmpeg records it with the screen. The window's opacity
-/// makes the stroke translucent and fades it out without redrawing.
+/// on purpose not excluded from capture, unlike the red frame: ffmpeg records it with the screen. The stroke is painted
+/// opaque; the window's opacity makes it translucent, so that crossings do not darken, and fades it out without
+/// redrawing.
 /// </summary>
 internal sealed class MacHighlightOverlay : IHighlightOverlay
 {
@@ -21,24 +23,27 @@ internal sealed class MacHighlightOverlay : IHighlightOverlay
     {
         var screen = ScreenInfo.Holding(area);
         var frame = screen.ToCocoa(area);
-        _view = new TrailView(area, screen.Frame.Scale) { Frame = new CGRect(CGPoint.Empty, frame.Size) };
+        Scale = screen.Frame.Scale;
+        _view = new TrailView(area, Scale) { Frame = new CGRect(CGPoint.Empty, frame.Size) };
         _window = new NSWindow(frame, NSWindowStyle.Borderless, NSBackingStore.Buffered, false)
         {
             IsOpaque = false,
             BackgroundColor = NSColor.Clear,
             HasShadow = false,
             IgnoresMouseEvents = true,
-            AlphaValue = (nfloat)HighlightTrail.FullOpacity,
+            AlphaValue = (nfloat)HighlightStyle.Default.Opacity,
             ContentView = _view
         };
         _window.ReleaseWhenClosed(false);
         windows.RaiseAboveEverything(_window.Handle);
     }
 
-    public void Draw(IReadOnlyList<PixelPoint> points)
+    public double Scale { get; }
+
+    public void Draw(IReadOnlyList<StrokeDisc> stroke, PixelRect changed)
     {
-        _view.Points = [.. points];
-        _view.NeedsDisplay = true;
+        _view.Stroke = stroke;
+        _view.SetNeedsDisplayInRect(_view.ToView(changed));
         if (!_window.IsVisible)
         {
             // Drawn before it shows: the video captures it, and its last stroke must not flash for a frame.
@@ -51,7 +56,8 @@ internal sealed class MacHighlightOverlay : IHighlightOverlay
 
     public void Hide()
     {
-        _view.Points = [];
+        _view.Stroke = [];
+        _view.NeedsDisplay = true;
         _window.OrderOut(null);
     }
 
@@ -68,31 +74,48 @@ internal sealed class MacHighlightOverlay : IHighlightOverlay
     {
         private static readonly NSColor Ink = NSColor.FromSrgb(1f, 212f / 255, 0f, 1f);
 
-        /// <summary>The same width as on Windows: 14.4 at 100 %, here in points, which the screen's scale multiplies.</summary>
-        private const float Thickness = 14.4f;
+        public IReadOnlyList<StrokeDisc> Stroke { get; set; } = [];
 
-        public PixelPoint[] Points { get; set; } = [];
+        /// <summary>A rectangle of screen pixels in the view's points; Cocoa's origin is at the bottom left.</summary>
+        public CGRect ToView(PixelRect r) => new((r.X - area.X) / scale, (area.Bottom - r.Bottom) / scale, r.Width / scale, r.Height / scale);
 
         public override void DrawRect(CGRect dirtyRect)
         {
-            var points = Points;
-            if (points.Length == 0)
+            NSColor.Clear.Set();
+            NSGraphics.RectFill(dirtyRect, NSCompositingOperation.Copy);
+            var stroke = Stroke;
+            if (stroke.Count == 0)
                 return;
-            // Cocoa's origin is at the bottom left of the view.
-            CGPoint At(PixelPoint p) => new((p.X - area.X) / scale, (area.Bottom - p.Y) / scale);
-            if (points.Length == 1)
+
+            // One fill per piece: a single path of them all would have its orientations cancel out where they overlap.
+            Ink.SetFill();
+            foreach (var i in BrushStroke.PiecesTouching(stroke, ToPixels(dirtyRect)))
             {
-                var centre = At(points[0]);
-                Ink.SetFill();
-                NSBezierPath.FromOvalInRect(new CGRect(centre.X - Thickness / 2, centre.Y - Thickness / 2, Thickness, Thickness)).Fill();
-                return;
+                var disc = stroke[i];
+                var centre = At(disc.X, disc.Y);
+                var radius = disc.Radius / scale;
+                NSBezierPath.FromOvalInRect(new CGRect(centre.X - radius, centre.Y - radius, 2 * radius, 2 * radius)).Fill();
+                if (i + 1 < stroke.Count && BrushStroke.Hull(disc, stroke[i + 1]) is { } hull)
+                {
+                    using var path = new NSBezierPath();
+                    path.MoveTo(At(hull[0].X, hull[0].Y));
+                    for (var j = 1; j < hull.Length; j++)
+                        path.LineTo(At(hull[j].X, hull[j].Y));
+                    path.ClosePath();
+                    path.Fill();
+                }
             }
-            var path = new NSBezierPath { LineWidth = Thickness, LineCapStyle = NSLineCapStyle.Round, LineJoinStyle = NSLineJoinStyle.Round };
-            path.MoveTo(At(points[0]));
-            foreach (var point in points.Skip(1))
-                path.LineTo(At(point));
-            Ink.SetStroke();
-            path.Stroke();
+        }
+
+        private CGPoint At(double x, double y) => new((x - area.X) / scale, (area.Bottom - y) / scale);
+
+        /// <summary>The screen pixels a rectangle of the view covers, rounded outwards.</summary>
+        private PixelRect ToPixels(CGRect r)
+        {
+            var left = (int)Math.Floor(area.X + r.X * scale);
+            var top = (int)Math.Floor(area.Bottom - (r.Y + r.Height) * scale);
+            return new PixelRect(left, top, (int)Math.Ceiling(area.X + (r.X + r.Width) * scale) - left,
+                (int)Math.Ceiling(area.Bottom - r.Y * scale) - top);
         }
     }
 }
