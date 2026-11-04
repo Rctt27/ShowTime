@@ -183,9 +183,24 @@ public sealed class HighlightOverlayTests : IDisposable
         Yellow(0, 20).ShouldBe(0);
         // The new end, below the first part.
         Yellow(120, 170).ShouldBeGreaterThan(50);
-        // At 90 %, the opacity before the last change, the trail's red would be about 230. Only the trail's pixels count:
-        // gdigrab draws the cursor, which another test may have moved into the area, white.
-        Enumerable.Range(0, area.Width * area.Height).Where(i => frame[i * 3 + 2] < 30).Max(i => (int)frame[i * 3]).ShouldBeLessThan(140);
+        // At 90 %, the opacity before the last change, the trail's red would be about 230. Measured on the new end alone,
+        // a vertical stroke at x = 150: windows of tests running alongside (the editor's red, the cursor) may show
+        // elsewhere in the area, and did (CI runs 41926801405, 41931664814).
+        var trail = (from y in Enumerable.Range(110, 60)
+                     from x in Enumerable.Range(140, 21)
+                     let i = (y * area.Width + x) * 3
+                     where frame[i] > 40 && frame[i + 1] > 30 && frame[i + 2] < 30
+                     select (Red: (int)frame[i], X: x, Y: y)).ToList();
+        trail.ShouldNotBeEmpty();
+        var brightest = trail.MaxBy(p => p.Red);
+        brightest.Red.ShouldBeLessThan(140, $"brightest trail pixel {brightest}; brightest in the frame {Brightest(frame, area)}");
+    }
+
+    /// <summary>Where the frame is reddest, and its color: what a failure shows of what was on screen.</summary>
+    private static string Brightest(byte[] frame, PixelRect area)
+    {
+        var i = Enumerable.Range(0, area.Width * area.Height).MaxBy(p => frame[p * 3]) * 3;
+        return $"({i / 3 % area.Width}, {i / 3 / area.Width}) = rgb({frame[i]}, {frame[i + 1]}, {frame[i + 2]})";
     }
 
     /// <summary>The frame at 1 s, as RGB bytes.</summary>
