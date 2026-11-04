@@ -37,6 +37,19 @@ public sealed class HighlightStyleTests
     }
 
     [Theory]
+    [InlineData(0, 7.26, 7.5)]
+    [InlineData(1, 0.70000000000001, 0.7)]
+    [InlineData(2, 3949, 3900)]
+    [InlineData(8, 5, 1)]
+    [InlineData(8, 0.45, 0.45)]
+    public void A_slider_value_snaps_to_its_step_within_bounds(int field, double value, double snapped) =>
+        HighlightStyle.Fields[field].Snap(value).ShouldBe(snapped);
+
+    [Fact]
+    public void Every_default_is_on_its_slider_step() =>
+        HighlightStyle.Fields.ShouldAllBe(f => f.Snap(f.Get(HighlightStyle.Default)) == f.Get(HighlightStyle.Default));
+
+    [Theory]
     [InlineData(0, 7, "7 px")]
     [InlineData(0, 7.5, "7,5 px")]
     [InlineData(1, 0.32, "32 %")]

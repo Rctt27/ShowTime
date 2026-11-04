@@ -19,6 +19,17 @@ public sealed record HighlightStyleField(
     // A decimal comma without culture data, which a trimmed app may lack.
     private static readonly NumberFormatInfo French = new() { NumberDecimalSeparator = "," };
 
+    /// <summary>
+    /// The value on the slider's nearest step, within its bounds, rounded to the step's decimals: a slider's arithmetic
+    /// does not leave 0.7000000000000001 in settings.json.
+    /// </summary>
+    public double Snap(double value)
+    {
+        var decimals = Math.Max(0, (int)Math.Ceiling(-Math.Log10(Step)));
+        var steps = Math.Round((Math.Clamp(value, Min, Max) - Min) / Step);
+        return Math.Round(Math.Min(Min + steps * Step, Max), decimals);
+    }
+
     public string Format(double value) => Unit switch
     {
         StyleUnit.Pixels => value.ToString("0.#", French) + " px",

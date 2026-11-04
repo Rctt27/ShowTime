@@ -20,7 +20,8 @@ namespace ShowTime;
 /// <summary>What the settings window needs from the rest of the app.</summary>
 internal sealed record SettingsContext(
     AppSettings Settings, ISettingsStore Store, SettingsDefaults Defaults, FfmpegLocator Locator, IFfmpegPlatform Platform,
-    IAudioDeviceLister AudioDevices, IStartupRegistration Startup, SettingsEditor Editor, TranscriptionModelLocator Models);
+    IAudioDeviceLister AudioDevices, IStartupRegistration Startup, SettingsEditor Editor, TranscriptionModelLocator Models,
+    IHighlightOverlayFactory Overlays, IUiThread UiThread, TimeProvider Clock, IRecordingStatus Recording);
 
 public partial class SettingsWindow : Window
 {
@@ -65,6 +66,8 @@ public partial class SettingsWindow : Window
         HighlightTriggerBox.TextChanged += (_, _) => UpdateHighlightWarning();
         UpdateHighlightWarning();
         _highlightStyle = settings.HighlightStyle;
+        // Its preview draws over the screen like a recording: not while one is under way.
+        HighlightStyleButton.IsEnabled = !_context.Recording.IsBusy;
 
         StartupBox.IsChecked = _context.Startup.IsEnabled;
         UpdateQualityState();
@@ -229,6 +232,16 @@ public partial class SettingsWindow : Window
         HotkeyVideoStartBox.Text = defaults.HotkeyVideoStart;
         HotkeyVideoStopBox.Text = defaults.HotkeyVideoStop;
         HighlightTriggerBox.Text = defaults.HighlightTrigger;
+    }
+
+    private void HighlightStyle_Click(object sender, RoutedEventArgs e)
+    {
+        var window = new HighlightStyleWindow(_highlightStyle, _context.Defaults, _context.Overlays, _context.UiThread, _context.Clock)
+        {
+            Owner = this
+        };
+        if (window.ShowDialog() == true)
+            _highlightStyle = window.Chosen;
     }
 
     private void Browse_Click(object sender, RoutedEventArgs e)
