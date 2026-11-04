@@ -2,6 +2,7 @@ using System.IO.Abstractions;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ShowTime.Core.Capture;
+using ShowTime.Core.Diagnostics;
 using ShowTime.Core.Files;
 using ShowTime.Core.Hotkeys;
 using ShowTime.Core.Ports;
@@ -73,6 +74,9 @@ internal static class Composition
         services.AddSingleton<ITranscriber, WhisperTranscriber>();
         services.AddSingleton<IAudioExtractor, FfmpegAudioExtractor>();
         services.AddSingleton<DiagnosticsReport>();
+        // A frozen main thread is noticed, recorded, and the user offered to force ShowTime to quit.
+        services.AddSingleton<IHangResponder, MacHangResponder>();
+        services.AddSingleton<HangWatchdog>();
 
         // macOS adapters
         services.AddSingleton<IUiThread>(new MainThread());

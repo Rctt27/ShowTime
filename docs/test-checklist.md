@@ -198,6 +198,15 @@ Avec l'artefact `ShowTime-macos` ou la release : le modèle est dans l'app, rien
 - [ ] « Supprimer » ou « Refaire » pendant la transcription : la vidéo et le `.srt` partent à la Corbeille, la transcription s'arrête.
 - [ ] Ne rien dire : « Aucune parole détectée », pas de `.srt`.
 - [ ] Quitter ShowTime pendant une transcription, le relancer : `~/Library/Caches/ShowTime` est vidé de ses `.wav`.
+- [ ] Enregistrer 30 s en parlant, puis « Supprimer » pendant que le panneau affiche « Transcription du micro… » : ShowTime ne se bloque pas, et le journal dit « Video … sent to the Trash » puis « Transcription of … canceled ».
+
+### Étape 6 bis : ShowTime bloquée
+
+- [ ] ShowTime fermée : `open -a ShowTime --args --test-hang`, puis cliquer dans une autre application. Environ 15 s après le lancement, une fenêtre « ShowTime ne répond plus » apparaît devant les autres, et le clavier y agit (`Entrée` choisit « Attendre »).
+- [ ] « Attendre » : la question revient environ 30 s plus tard si ShowTime est toujours bloquée ; une minute après le blocage, ShowTime répond de nouveau, la fenêtre se ferme d'elle-même et le journal dit « The main thread answers again ».
+- [ ] `~/Library/Logs/ShowTime/hang-….txt` existe, et la pile du thread principal (« Thread_… DispatchQueue_1: com.apple.main-thread ») passe par `Thread.Sleep`.
+- [ ] Pendant un enregistrement avec le micro, relancer avec `--test-hang` (ou attendre le blocage) puis « Forcer l'arrêt » : ShowTime se ferme, et la vidéo dans `~/Pictures/ShowTime` se lit (`ffmpeg -i` affiche sa durée).
+- [ ] Sans blocage : une alerte de ShowTime laissée ouverte 2 minutes, puis le Mac mis en veille 1 minute et réveillé, n'affichent pas la fenêtre.
 
 ### Étape 7 : réglages
 
