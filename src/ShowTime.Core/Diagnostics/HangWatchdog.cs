@@ -48,8 +48,9 @@ public sealed class HangWatchdog(TimeProvider clock, IUiThread uiThread, IHangRe
 
     private void Tick()
     {
-        TimeSpan silence;
-        bool first;
+        var ping = false;
+        var silence = TimeSpan.Zero;
+        var first = false;
         lock (_gate)
         {
             if (_disposed || _reporting)
@@ -58,8 +59,7 @@ public sealed class HangWatchdog(TimeProvider clock, IUiThread uiThread, IHangRe
             if (_pingSentAt is not { } sentAt)
             {
                 _pingSentAt = now;
-                silence = TimeSpan.Zero;
-                first = false;
+                ping = true;
             }
             else
             {
@@ -74,7 +74,7 @@ public sealed class HangWatchdog(TimeProvider clock, IUiThread uiThread, IHangRe
         }
 
         // Outside the lock: the UI thread may run the ping at once, and a report blocks while the user decides.
-        if (silence == TimeSpan.Zero)
+        if (ping)
         {
             uiThread.Post(Answer);
             return;
