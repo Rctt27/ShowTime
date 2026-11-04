@@ -198,6 +198,20 @@ Avec l'artefact `ShowTime-macos` ou la release : le modèle est dans l'app, rien
 - [ ] « Supprimer » ou « Refaire » pendant la transcription : la vidéo et le `.srt` partent à la Corbeille, la transcription s'arrête.
 - [ ] Ne rien dire : « Aucune parole détectée », pas de `.srt`.
 - [ ] Quitter ShowTime pendant une transcription, le relancer : `~/Library/Caches/ShowTime` est vidé de ses `.wav`.
+- [ ] Enregistrer 30 s en parlant, puis « Supprimer » pendant que le panneau affiche « Transcription du micro… » : ShowTime ne se bloque pas, et le journal dit « Video … sent to the Trash » puis « Transcription of … canceled ».
+
+### Étape 6 bis : ShowTime bloquée
+
+`--test-hang` bloque ShowTime pendant une minute, 15 s après son lancement : le temps d'ouvrir son menu ou de démarrer un enregistrement.
+
+- [ ] ShowTime fermée : `open -a ShowTime --args --test-hang`, puis cliquer dans une autre application. Environ 25 s après le lancement, une fenêtre « ShowTime ne répond plus » apparaît devant les autres, et le clavier y agit (`Entrée` choisit « Attendre »).
+- [ ] Comme le 4 novembre : `open -a ShowTime --args --test-hang`, ouvrir le menu de ShowTime avant 15 s et le laisser ouvert. Le blocage le fige (curseur qui tourne) ; la fenêtre apparaît quand même au-dessus, prend le clavier et se clique. Si elle n'apparaît pas ou ne prend pas le clavier, le noter : c'est le cas à traiter autrement.
+- [ ] « Attendre » : la question revient environ 30 s plus tard si ShowTime est toujours bloquée ; une minute après le blocage, ShowTime répond de nouveau, la fenêtre se ferme d'elle-même et le journal dit « The main thread answers again ».
+- [ ] `~/Library/Logs/ShowTime/hang-….txt` existe, et la pile du thread principal (« Thread_… DispatchQueue_1: com.apple.main-thread ») passe par `Thread.Sleep`.
+- [ ] `open -a ShowTime --args --test-hang`, démarrer avant 15 s une vidéo avec le micro, puis, une fois la fenêtre apparue, « Forcer l'arrêt » : ShowTime se ferme, et la vidéo dans `~/Pictures/ShowTime` se lit (`ffmpeg -i` affiche sa durée).
+- [ ] Sans blocage, aucune de ces alertes de ShowTime laissée ouverte 2 minutes n'affiche la fenêtre : « Quitter ShowTime » pendant un enregistrement (« Un enregistrement vidéo est en cours… ») ; un raccourci de vidéo pendant une sélection de zone, ou tout autre raccourci qui finit sur une alerte ; « Supprimer » dans l'aperçu d'une vidéo.
+- [ ] Le Mac mis en veille 1 minute puis réveillé n'affiche pas la fenêtre.
+- [ ] Blocage qui finit avant la question : le journal dit « The main thread answers again » et aucune fenêtre ne reste ouverte.
 
 ### Étape 7 : réglages
 

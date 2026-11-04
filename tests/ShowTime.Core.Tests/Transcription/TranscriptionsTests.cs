@@ -1,4 +1,5 @@
 using System.IO.Abstractions.TestingHelpers;
+using Microsoft.Extensions.Logging;
 using NSubstitute;
 using ShowTime.Core.Ports;
 using ShowTime.Core.Settings;
@@ -17,6 +18,7 @@ public sealed class TranscriptionsTests
     private readonly AppSettings _settings = new(SettingsDefaults.ForWindows(Root));
     private readonly FakeTranscriber _transcriber = new();
     private readonly FakeRecordingStatus _recording = new();
+    private readonly ListLogger<Transcriptions> _log = new();
     private readonly FakeAudioExtractor _extractor;
     private readonly Transcriptions _transcriptions;
 
@@ -28,7 +30,7 @@ public sealed class TranscriptionsTests
         var paths = Substitute.For<IAppPaths>();
         paths.WorkFolder.Returns(Work);
         _transcriptions = new Transcriptions(_transcriber, _extractor, new MicrophoneTracks(_settings, models, paths, _fs), models,
-            _settings, new SubtitleFile(_fs), _fs, _recording, new ImmediateUiThread());
+            _settings, new SubtitleFile(_fs), _fs, _recording, new ImmediateUiThread(), _log);
     }
 
     private static SubtitleCue Cue(double start, double end, string text) => new(TimeSpan.FromSeconds(start), TimeSpan.FromSeconds(end), text);
@@ -308,5 +310,70 @@ public sealed class TranscriptionsTests
         _transcriptions.Dispose();
 
         _transcriber.Last.Token.IsCancellationRequested.ShouldBeTrue();
+    }
+
+    [Fact]
+    public void A_transcription_logs_its_start_and_its_end()
+    {
+        var (video, audio) = Recorded("a");
+
+        _transcriptions.Enqueue(video, audio);
+        _transcriber.Last.Complete(Word(0, 1, " Bonjour."));
+
+        _log.Entries.Count.ShouldBe(2);
+        _log.Entries.ShouldAllBe(e => e.Level == LogLevel.Information && e.Message.Contains("a.mp4"));
+        _log.Entries[0].Message.ShouldContain("started");
+        _log.Entries[1].Message.ShouldContain("done");
+    }
+
+    [Fact]
+    public void Progress_is_not_logged()
+    {
+        var (video, audio) = Recorded("a");
+        _transcriptions.Enqueue(video, audio);
+
+        _transcriber.Last.OnProgress(0.1);
+        _transcriber.Last.OnProgress(0.2);
+        _transcriber.Last.OnProgress(0.3);
+
+        _log.Entries.Count.ShouldBe(1);
+        _log.Entries[0].Message.ShouldContain("started");
+    }
+
+    [Fact]
+    public void A_cancelled_transcription_is_logged()
+    {
+        var (video, audio) = Recorded("a");
+        var job = _transcriptions.Enqueue(video, audio);
+
+        _transcriptions.Cancel(job);
+
+        _log.Entries[^1].Level.ShouldBe(LogLevel.Information);
+        _log.Entries[^1].Message.ShouldContain("canceled");
+    }
+
+    [Fact]
+    public void A_transcription_interrupted_by_a_recording_is_logged()
+    {
+        var (video, audio) = Recorded("a");
+        _transcriptions.Enqueue(video, audio);
+
+        _recording.Set(recording: true);
+
+        _log.Entries[^1].Message.ShouldContain("interrupted");
+    }
+
+    [Fact]
+    public void A_failed_transcription_is_logged_as_a_warning_with_its_exception()
+    {
+        var (video, audio) = Recorded("a");
+        _transcriptions.Enqueue(video, audio);
+        var failure = new InvalidOperationException("boom");
+
+        _transcriber.Last.Result.SetException(failure);
+
+        _log.Entries[^1].Level.ShouldBe(LogLevel.Warning);
+        _log.Entries[^1].Message.ShouldContain("a.mp4");
+        _log.Entries[^1].Exception.ShouldBeSameAs(failure);
     }
 }

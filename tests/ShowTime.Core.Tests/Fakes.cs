@@ -1,3 +1,4 @@
+using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Time.Testing;
 using ShowTime.Core.Geometry;
 using ShowTime.Core.Hotkeys;
@@ -20,6 +21,51 @@ internal sealed class FakeImage(int width = 10, int height = 10) : IImage
 internal sealed class ImmediateUiThread : IUiThread
 {
     public void Post(Action action) => action();
+}
+
+/// <summary>A UI thread that is stuck until the test runs what was posted to it.</summary>
+internal sealed class ManualUiThread : IUiThread
+{
+    private readonly Queue<Action> _posted = new();
+
+    public int Pending => _posted.Count;
+
+    public void Post(Action action) => _posted.Enqueue(action);
+
+    public void RunAll()
+    {
+        while (_posted.TryDequeue(out var action))
+            action();
+    }
+}
+
+/// <summary>Notes the hangs reported and the recoveries; <see cref="OnHung"/> stands for the user's answer.</summary>
+internal sealed class FakeHangResponder : IHangResponder
+{
+    public List<(TimeSpan Silence, bool First)> Hangs { get; } = [];
+    public List<TimeSpan> Recoveries { get; } = [];
+    public Action? OnHung { get; set; }
+
+    public void Hung(TimeSpan silence, bool first)
+    {
+        Hangs.Add((silence, first));
+        OnHung?.Invoke();
+    }
+
+    public void Recovered(TimeSpan silence) => Recoveries.Add(silence);
+}
+
+/// <summary>Keeps every line logged, for the test to read.</summary>
+internal sealed class ListLogger<T> : ILogger<T>
+{
+    public List<(LogLevel Level, string Message, Exception? Exception)> Entries { get; } = [];
+
+    public IDisposable? BeginScope<TState>(TState state) where TState : notnull => null;
+
+    public bool IsEnabled(LogLevel logLevel) => true;
+
+    public void Log<TState>(LogLevel logLevel, EventId eventId, TState state, Exception? exception, Func<TState, Exception?, string> formatter) =>
+        Entries.Add((logLevel, formatter(state, exception), exception));
 }
 
 /// <summary>A settings store that keeps nothing.</summary>

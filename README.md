@@ -85,6 +85,8 @@ Le diagnostic vérifie, sans ouvrir de fenêtre, ce dont ShowTime a besoin : ffm
 
 Le rapport est aussi enregistré dans `diagnostics.txt`, dans le dossier du journal : joignez-le, avec le journal, à votre signalement.
 
+Sur Mac, si ShowTime ne répond plus pendant 10 secondes, une fenêtre propose « Attendre » ou « Forcer l'arrêt » ; elle reprend le clavier à ShowTime, et se ferme d'elle-même si ShowTime se remet à répondre. « Forcer l'arrêt » ferme ShowTime en gardant la vidéo en cours d'enregistrement. ShowTime enregistre au même moment où il était bloqué dans `hang-….txt`, dans le dossier du journal : joignez ce fichier au signalement. Si cette fenêtre n'apparaît pas, ShowTime se ferme depuis le Moniteur d'activité (Applications › Utilitaires) : sélectionner ShowTime, puis « Forcer à quitter ». Une app de la barre des menus n'apparaît pas dans la fenêtre « Forcer à quitter » de `⌥⌘⎋`.
+
 ## Développement
 
 Nécessite le SDK .NET 10 (`global.json`). L'architecture, les commandes et les règles du dépôt sont décrites dans [CLAUDE.md](CLAUDE.md).
