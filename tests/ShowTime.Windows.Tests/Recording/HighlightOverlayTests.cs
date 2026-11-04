@@ -29,7 +29,7 @@ public sealed class HighlightOverlayTests : IDisposable
         overlay.Draw([new PixelPoint(10, 50), new PixelPoint(190, 50)]);
 
         overlay.Visible.ShouldBeTrue();
-        overlay.Opacity.ShouldBe(HighlightTrail.FullOpacity, 0.01);
+        overlay.TrailOpacity.ShouldBe(HighlightTrail.FullOpacity, 0.01);
         HighlightOverlay.Thickness.ShouldBe(14.4f);
         const int expected = Native.WS_EX_TRANSPARENT | Native.WS_EX_NOACTIVATE | Native.WS_EX_LAYERED;
         (Native.GetWindowLong(overlay.Handle, Native.GWL_EXSTYLE) & expected).ShouldBe(expected);
@@ -44,9 +44,33 @@ public sealed class HighlightOverlayTests : IDisposable
         using var overlay = new HighlightOverlay(new Rectangle(0, 0, 200, 100));
         overlay.Draw([new PixelPoint(10, 50)]);
         overlay.SetOpacity(0.2);
-        overlay.Opacity.ShouldBe(0.2, 0.01);
+        overlay.TrailOpacity.ShouldBe(0.2, 0.01);
         ((IHighlightOverlay)overlay).Hide();
         overlay.Visible.ShouldBeFalse();
+    });
+
+    [Fact]
+    public async Task The_trail_is_antialiased_without_a_fringe() => await Sta.Run(() =>
+    {
+        using var overlay = new HighlightOverlay(new Rectangle(0, 0, 200, 200));
+        overlay.Draw([new PixelPoint(20, 30), new PixelPoint(180, 170)]);
+
+        var pixels = (from x in Enumerable.Range(0, 200) from y in Enumerable.Range(0, 200) select overlay.SurfacePixel(x, y)).ToList();
+        pixels.ShouldContain(c => c.A == 255);
+        pixels.ShouldContain(c => c.A > 0 && c.A < 255);
+        // Every visible pixel is the ink: no blend with a key color, so no fringe.
+        pixels.Where(c => c.A >= 64).ShouldAllBe(c => c.R >= 250 && Math.Abs(c.G - 212) <= 6 && c.B <= 6);
+    });
+
+    [Fact]
+    public async Task Hiding_clears_the_surface() => await Sta.Run(() =>
+    {
+        using var overlay = new HighlightOverlay(new Rectangle(0, 0, 100, 100));
+        overlay.Draw([new PixelPoint(10, 50), new PixelPoint(90, 50)]);
+        ((IHighlightOverlay)overlay).Hide();
+
+        (from x in Enumerable.Range(0, 100) from y in Enumerable.Range(0, 100) select overlay.SurfacePixel(x, y))
+            .ShouldAllBe(c => c.A == 0);
     });
 
     [Fact]
