@@ -23,6 +23,11 @@ internal sealed record SettingsContext(
 /// </summary>
 internal sealed class SettingsWindowController : NSWindowController
 {
+    /// <summary>The title bar and some room around the window, out of the screen's visible height.</summary>
+    private const double TitleAndMargin = 60;
+    /// <summary>The smallest height the window can be resized to.</summary>
+    private const double MinHeight = 300;
+
     private const int LabelWidth = 170;
 
     private static readonly (string Title, AfterCaptureAction Action)[] AfterCaptureChoices =
@@ -110,8 +115,14 @@ internal sealed class SettingsWindowController : NSWindowController
         _startup.State = context.Startup.IsEnabled ? NSCellStateValue.On : NSCellStateValue.Off;
 
         var window = Window!;
-        window.ContentView = Build();
-        window.SetContentSize(window.ContentView.FittingSize);
+        var form = Build();
+        var size = form.FittingSize;
+        window.ContentView = Scrollable(form);
+        // No taller than the screen: the form scrolls, so that its last rows and the buttons stay reachable.
+        var screen = (NSScreen.MainScreen?.VisibleFrame.Height ?? size.Height) - TitleAndMargin;
+        window.SetContentSize(new CGSize(size.Width, Math.Min(size.Height, screen)));
+        window.ContentMinSize = new CGSize(size.Width, Math.Min(size.Height, MinHeight));
+        window.ContentMaxSize = new CGSize(size.Width, size.Height);
         window.WillClose += (_, _) => Closed?.Invoke(this, EventArgs.Empty);
         UpdateFormat();
         UpdatePatternPreview();
@@ -123,7 +134,8 @@ internal sealed class SettingsWindowController : NSWindowController
 
     private static NSWindow CreateWindow()
     {
-        var window = new NSWindow(new CGRect(0, 0, 680, 600), NSWindowStyle.Titled | NSWindowStyle.Closable, NSBackingStore.Buffered, false)
+        var window = new NSWindow(new CGRect(0, 0, 680, 600), NSWindowStyle.Titled | NSWindowStyle.Closable | NSWindowStyle.Resizable,
+            NSBackingStore.Buffered, false)
         {
             Title = "ShowTime — Réglages"
         };
@@ -206,6 +218,33 @@ internal sealed class SettingsWindowController : NSWindowController
         foreach (var help in new[] { _patternPreview, _ffmpegStatus, _modelStatus })
             help.PreferredMaxLayoutWidth = 460;
         return form;
+    }
+
+    /// <summary>The form at the top of a scroll view, as wide as the window.</summary>
+    private static NSScrollView Scrollable(NSView form)
+    {
+        var document = new FlippedView { TranslatesAutoresizingMaskIntoConstraints = false };
+        form.TranslatesAutoresizingMaskIntoConstraints = false;
+        document.AddSubview(form);
+        var scroll = new NSScrollView
+        {
+            HasVerticalScroller = true,
+            AutohidesScrollers = true,
+            DrawsBackground = false,
+            DocumentView = document
+        };
+        var clip = scroll.ContentView;
+        NSLayoutConstraint.ActivateConstraints(
+        [
+            form.TopAnchor.ConstraintEqualTo(document.TopAnchor),
+            form.LeadingAnchor.ConstraintEqualTo(document.LeadingAnchor),
+            form.TrailingAnchor.ConstraintEqualTo(document.TrailingAnchor),
+            form.BottomAnchor.ConstraintEqualTo(document.BottomAnchor),
+            document.TopAnchor.ConstraintEqualTo(clip.TopAnchor),
+            document.LeadingAnchor.ConstraintEqualTo(clip.LeadingAnchor),
+            document.WidthAnchor.ConstraintEqualTo(clip.WidthAnchor)
+        ]);
+        return scroll;
     }
 
     private static NSTextField Section(string title)
@@ -407,5 +446,11 @@ internal sealed class SettingsWindowController : NSWindowController
             MacDialogs.Show(ex.Message + "\n\nLes autres réglages sont enregistrés.", NSAlertStyle.Warning);
         }
         Window?.Close();
+    }
+
+    /// <summary>The scroll view's document, laid out from the top.</summary>
+    private sealed class FlippedView : NSView
+    {
+        public override bool IsFlipped => true;
     }
 }
