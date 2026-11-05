@@ -305,6 +305,9 @@ internal sealed class FakeHighlightOverlay : IHighlightOverlay
 {
     public double Scale { get; set; } = 1;
     public List<(IReadOnlyList<StrokeDisc> Stroke, PixelRect Changed)> Draws { get; } = [];
+
+    /// <summary>"Draw" and "SetOpacity", in the order they came.</summary>
+    public List<string> Calls { get; } = [];
     public double Opacity { get; private set; }
     public int OpacityChanges { get; private set; }
     public bool Visible { get; private set; }
@@ -313,6 +316,7 @@ internal sealed class FakeHighlightOverlay : IHighlightOverlay
     public void Draw(IReadOnlyList<StrokeDisc> stroke, PixelRect changed)
     {
         Draws.Add(([.. stroke], changed));
+        Calls.Add("Draw");
         Visible = true;
     }
 
@@ -320,6 +324,7 @@ internal sealed class FakeHighlightOverlay : IHighlightOverlay
     {
         Opacity = opacity;
         OpacityChanges++;
+        Calls.Add("SetOpacity");
     }
 
     public void Hide() => Visible = false;
@@ -334,8 +339,13 @@ internal sealed class FakeHighlightOverlayFactory : IHighlightOverlayFactory
     /// <summary>The scale of the overlays it creates.</summary>
     public double Scale { get; set; } = 1;
 
+    /// <summary>Throws as the system does when it cannot create the overlay's surface.</summary>
+    public bool Fails { get; set; }
+
     public IHighlightOverlay Create(PixelRect area)
     {
+        if (Fails)
+            throw new InvalidOperationException("No surface.");
         Area = area;
         return Overlay = new FakeHighlightOverlay { Scale = Scale };
     }

@@ -28,6 +28,10 @@ public sealed class Highlighter(
     /// <summary>The stroke on the overlay, from which the next one's change is measured.</summary>
     private IReadOnlyList<StrokeDisc> _drawn = [];
 
+    /// <summary>What <see cref="_drawn"/> was built with: nothing to rebuild while both stay the same.</summary>
+    private HighlightStyle? _drawnStyle;
+    private bool _drawnLifted;
+
     private double _opacity;
 
     /// <summary>Registers the trigger for a recording of <paramref name="area"/>.</summary>
@@ -38,7 +42,16 @@ public sealed class Highlighter(
         if (!HighlightTrigger.TryParse(settings.HighlightTrigger, out var trigger) || !input.Register(trigger, OnPressed))
             return null;
         _registered = true;
-        _overlay = overlays.Create(area);
+        try
+        {
+            _overlay = overlays.Create(area);
+        }
+        catch (InvalidOperationException)
+        {
+            // No surface for the trail, an area too large for the memory left: the recording goes on without it.
+            Disable();
+            return null;
+        }
         return trigger.Format(hotkeyNaming);
     }
 
@@ -52,6 +65,7 @@ public sealed class Highlighter(
         _overlay = null;
         _held = false;
         _drawn = [];
+        _drawnStyle = null;
     }
 
     public void Dispose() => Disable();
@@ -65,9 +79,10 @@ public sealed class Highlighter(
         _pressedAt = clock.GetTimestamp();
         var style = settings.HighlightStyle.Clamped();
         _trail.Begin(input.Cursor, TimeSpan.Zero);
+        // A stroke still fading is cleared before the opacity rises: raised first, it would flash at full opacity.
+        Redraw(overlay, style);
         _opacity = style.Opacity;
         overlay.SetOpacity(_opacity);
-        Redraw(overlay, style);
         _frames ??= clock.CreateTimer(_ => uiThread.Post(OnFrame), null, FrameInterval, FrameInterval);
     }
 
@@ -83,22 +98,26 @@ public sealed class Highlighter(
         }
         if (_held)
         {
-            _trail.Add(input.Cursor, clock.GetElapsedTime(_pressedAt));
+            var moved = _trail.Add(input.Cursor, clock.GetElapsedTime(_pressedAt));
             SetOpacity(overlay, style.Opacity);
-            Redraw(overlay, style);
+            // A long stroke costs a few milliseconds to build: not on every frame while the mouse stays still.
+            if (moved || style != _drawnStyle)
+                Redraw(overlay, style);
             return;
         }
 
         var opacity = HighlightTrail.FadeOpacity(clock.GetElapsedTime(_releasedAt), style.Opacity);
         if (opacity > 0)
         {
-            // Once released, the end tapers: the first frame of the fade redraws it, the others find nothing changed.
-            Redraw(overlay, style);
+            // Once released, the end tapers: redrawn on the first frame of the fade, then only for a new style.
+            if (!_drawnLifted || style != _drawnStyle)
+                Redraw(overlay, style);
             SetOpacity(overlay, opacity);
             return;
         }
         overlay.Hide();
         _drawn = [];
+        _drawnStyle = null;
         StopFrames();
     }
 
@@ -109,6 +128,8 @@ public sealed class Highlighter(
         if (BrushStroke.Changed(_drawn, stroke) is { } changed)
             overlay.Draw(stroke, changed);
         _drawn = stroke;
+        _drawnStyle = style;
+        _drawnLifted = !_held;
     }
 
     private void SetOpacity(IHighlightOverlay overlay, double opacity)

@@ -44,12 +44,15 @@ internal sealed class MacHighlightOverlay : IHighlightOverlay
     {
         _view.Stroke = stroke;
         _view.SetNeedsDisplayInRect(_view.ToView(changed));
-        if (!_window.IsVisible)
+        if (_window.IsVisible)
         {
-            // Drawn before it shows: the video captures it, and its last stroke must not flash for a frame.
-            _view.Display();
-            _window.OrderFrontRegardless();
+            // Now rather than at the end of the run loop's turn: an opacity set next applies to this stroke, not the last.
+            _view.DisplayIfNeeded();
+            return;
         }
+        // Drawn before it shows: the video captures it, and its last stroke must not flash for a frame.
+        _view.Display();
+        _window.OrderFrontRegardless();
     }
 
     public void SetOpacity(double opacity) => _window.AlphaValue = (nfloat)opacity;
@@ -94,7 +97,8 @@ internal sealed class MacHighlightOverlay : IHighlightOverlay
                 var disc = stroke[i];
                 var centre = At(disc.X, disc.Y);
                 var radius = disc.Radius / scale;
-                NSBezierPath.FromOvalInRect(new CGRect(centre.X - radius, centre.Y - radius, 2 * radius, 2 * radius)).Fill();
+                using (var oval = NSBezierPath.FromOvalInRect(new CGRect(centre.X - radius, centre.Y - radius, 2 * radius, 2 * radius)))
+                    oval.Fill();
                 if (i + 1 < stroke.Count && BrushStroke.Hull(disc, stroke[i + 1]) is { } hull)
                 {
                     using var path = new NSBezierPath();

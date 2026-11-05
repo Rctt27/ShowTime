@@ -56,6 +56,14 @@ internal sealed unsafe class HighlightOverlay : Form, IHighlightOverlay
             biBitCount = 32
         };
         _dib = Native.CreateDIBSection(_surfaceDc, &header, Native.DIB_RGB_COLORS, out var bits, IntPtr.Zero, 0);
+        if (_dib == IntPtr.Zero || bits == IntPtr.Zero)
+        {
+            // An area too large for the memory left: GDI+ would draw on a buffer of its own that nothing shows, so the
+            // highlighter is told and leaves the trail off (IHighlightOverlayFactory).
+            Native.DeleteDC(_surfaceDc);
+            _released = true;
+            throw new InvalidOperationException($"No surface of {width} x {height} pixels for the highlight.");
+        }
         _previousBitmap = Native.SelectObject(_surfaceDc, _dib);
         _surface = new Bitmap(width, height, width * 4, PixelFormat.Format32bppPArgb, bits);
         // Created now, on the area's monitor, so that its DPI is known before the first stroke is built.

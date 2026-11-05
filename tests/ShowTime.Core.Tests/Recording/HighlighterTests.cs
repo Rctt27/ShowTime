@@ -208,6 +208,35 @@ public sealed class HighlighterTests
     }
 
     [Fact]
+    public void An_overlay_the_system_cannot_create_leaves_the_highlight_off()
+    {
+        _overlays.Fails = true;
+        _highlighter.Enable(Area).ShouldBeNull();
+        _input.Unregistrations.ShouldBe(1);
+
+        // Pressing anyway draws nothing and throws nothing.
+        _input.Press();
+        _overlays.Overlay.ShouldBeNull();
+    }
+
+    [Fact]
+    public void A_new_press_during_the_fade_clears_the_old_stroke_before_raising_the_opacity()
+    {
+        HoldAt(new PixelPoint(100, 100));
+        _input.Cursor = new PixelPoint(300, 100);
+        _clock.Advance(Highlighter.FrameInterval);
+        Release();
+        Advance(TimeSpan.FromMilliseconds(400));
+        Overlay.Calls.Clear();
+
+        _input.Cursor = new PixelPoint(500, 500);
+        _input.IsHeld = true;
+        _input.Press();
+        // Raised first, the old stroke would show at full opacity until the new one replaced it.
+        Overlay.Calls.ShouldBe(["Draw", "SetOpacity"]);
+    }
+
+    [Fact]
     public void A_new_press_during_the_fade_repaints_over_the_old_stroke()
     {
         HoldAt(new PixelPoint(100, 100));
