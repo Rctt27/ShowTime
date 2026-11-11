@@ -6,6 +6,7 @@ using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
 using ShowTime.Core.Settings;
 using ShowTime.Core.Transcription;
+using ShowTime.Core.Updates;
 
 namespace ShowTime.Core.Tests;
 
@@ -329,6 +330,95 @@ internal sealed class FakeHighlightOverlay : IHighlightOverlay
 
     public void Hide() => Visible = false;
     public void Dispose() => Disposed = true;
+}
+
+internal static class UpdateFixtures
+{
+    /// <summary>GitHub's answer for the v0.6.3 release, trimmed to what ShowTime reads.</summary>
+    public static string Release063 =>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Updates", "release-v0.6.3.json"));
+}
+
+/// <summary>Answers with <see cref="Json"/>, fails with <see cref="Failure"/>, or waits on <see cref="Pending"/>.</summary>
+internal sealed class FakeReleaseFeed : IReleaseFeed
+{
+    public int Calls { get; private set; }
+    public string Json { get; set; } = UpdateFixtures.Release063;
+    public Exception? Failure { get; set; }
+
+    /// <summary>When set, each call waits until the test completes it.</summary>
+    public TaskCompletionSource<string>? Pending { get; set; }
+
+    public Task<string> GetLatestAsync(CancellationToken cancellationToken)
+    {
+        Calls++;
+        if (Pending is not null)
+            return Pending.Task;
+        return Failure is not null ? Task.FromException<string>(Failure) : Task.FromResult(Json);
+    }
+}
+
+/// <summary>Writes <see cref="Content"/> to the destination after reporting <see cref="Progress"/>, or fails as told.</summary>
+internal sealed class FakeUpdateDownloader(System.IO.Abstractions.IFileSystem fileSystem) : IUpdateDownloader
+{
+    public List<(Uri Url, string Destination)> Calls { get; } = [];
+    public byte[] Content { get; set; } = [];
+    public IReadOnlyList<double> Progress { get; set; } = [];
+    public Exception? Failure { get; set; }
+
+    /// <summary>When set, each download waits until the test completes it.</summary>
+    public TaskCompletionSource? Pending { get; set; }
+
+    public async Task DownloadAsync(Uri url, string destinationFile, IProgress<double> progress, CancellationToken cancellationToken)
+    {
+        Calls.Add((url, destinationFile));
+        foreach (var value in Progress)
+            progress.Report(value);
+        if (Pending is not null)
+            await Pending.Task.WaitAsync(cancellationToken);
+        if (Failure is not null)
+            throw Failure;
+        fileSystem.File.WriteAllBytes(destinationFile, Content);
+    }
+}
+
+internal sealed class FakeUpdateInstaller : IUpdateInstaller
+{
+    public UpdatePlatform Platform { get; set; } = UpdatePlatform.WindowsX64;
+    public UpdateLayout Layout { get; set; } = new(UpdatePlatform.WindowsX64, @"C:\ShowTime");
+    public bool CanReplace { get; set; } = true;
+    public Exception? StageFailure { get; set; }
+    public List<(string Zip, string Staging)> Staged { get; } = [];
+    public List<ReplacementPlan> Replacements { get; } = [];
+
+    public bool CanReplaceApp() => CanReplace;
+
+    public Task<string> StageAsync(string zipFile, string stagingFolder, CancellationToken cancellationToken)
+    {
+        Staged.Add((zipFile, stagingFolder));
+        return StageFailure is not null
+            ? Task.FromException<string>(StageFailure)
+            : Task.FromResult(Path.Combine(stagingFolder, "ShowTime"));
+    }
+
+    public void StartReplacement(ReplacementPlan plan) => Replacements.Add(plan);
+}
+
+internal sealed class FakeUpdateHost : IUpdateHost
+{
+    public bool CloseWindows { get; set; } = true;
+    public int CloseRequests { get; private set; }
+    public int Quits { get; private set; }
+    public List<Uri> Opened { get; } = [];
+
+    public bool TryCloseWindows()
+    {
+        CloseRequests++;
+        return CloseWindows;
+    }
+
+    public void Quit() => Quits++;
+    public void OpenInBrowser(Uri url) => Opened.Add(url);
 }
 
 internal sealed class FakeHighlightOverlayFactory : IHighlightOverlayFactory

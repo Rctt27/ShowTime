@@ -5,8 +5,7 @@ namespace ShowTime.Core.Tests.Updates;
 
 public sealed class GitHubReleaseTests
 {
-    private static string Fixture() =>
-        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Updates", "release-v0.6.3.json"));
+    private static string Fixture() => UpdateFixtures.Release063;
 
     private static string Modified(Action<JsonObject> change)
     {
