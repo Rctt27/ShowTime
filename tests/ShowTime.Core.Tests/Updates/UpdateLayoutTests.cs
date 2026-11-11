@@ -15,6 +15,7 @@ public sealed class UpdateLayoutTests
         layout.StagingFolder(Next).ShouldBe(@"C:\Tools\ShowTime\.update-0.7.0");
         layout.BackupPath.ShouldBe(@"C:\Tools\ShowTime\.old");
         layout.Items.ShouldBe(["ShowTime.exe", "LISEZ-MOI.txt", "app"]);
+        layout.RestoreFailedMarker.ShouldBe(@"C:\Tools\ShowTime\.update-failed");
     }
 
     [Fact]
@@ -35,6 +36,7 @@ public sealed class UpdateLayoutTests
         layout.StagingFolder(Next).ShouldBe("/Applications/.ShowTime-update-0.7.0");
         layout.BackupPath.ShouldBe("/Applications/.ShowTime-old.app");
         layout.Items.ShouldBe(["ShowTime.app"]);
+        layout.RestoreFailedMarker.ShouldBe("/Applications/.ShowTime-update-failed");
     }
 
     [Fact]

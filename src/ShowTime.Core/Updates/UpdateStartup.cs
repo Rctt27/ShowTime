@@ -54,11 +54,35 @@ public static class UpdateStartup
             return;
         }
 
+        if (fileSystem.File.Exists(layout.RestoreFailedMarker))
+        {
+            // The script could not put the old version back: the backup may be its only copy, so nothing is deleted
+            // until the user has dealt with it and removed the marker.
+            var backup = ReadBackupPath(layout, fileSystem);
+            log.LogWarning("An update could not be undone entirely; the old version is kept in {Backup}", backup);
+            dialogs.ShowWarning($"La mise à jour n'a pas pu être annulée entièrement : l'ancienne version est conservée dans {backup}.");
+            return;
+        }
+
         DeleteLeftovers(layout, fileSystem, log);
         if (arguments.FailedVersion is { } failed)
         {
             log.LogWarning("Version {Failed} did not start; still running version {Current}", failed, current);
             dialogs.ShowWarning($"La version {failed} n'a pas pu démarrer ; ShowTime est resté en version {current}.");
+        }
+    }
+
+    /// <summary>The backup's path, as the script wrote it in the marker; the layout's when it cannot be read.</summary>
+    private static string ReadBackupPath(UpdateLayout layout, IFileSystem fileSystem)
+    {
+        try
+        {
+            var written = fileSystem.File.ReadAllText(layout.RestoreFailedMarker).Trim();
+            return written.Length > 0 ? written : layout.BackupPath;
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            return layout.BackupPath;
         }
     }
 

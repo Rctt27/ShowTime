@@ -66,6 +66,7 @@ public static partial class ReplacementScript
             ["QUIT"] = QuitSeconds.ToString(CultureInfo.InvariantCulture),
             ["INSTALL"] = PowerShellQuote(layout.AppPath),
             ["BACKUP"] = PowerShellQuote(layout.BackupPath),
+            ["MARKER"] = PowerShellQuote(layout.RestoreFailedMarker),
             ["STAGED"] = PowerShellQuote(plan.StagedApp),
             ["STAGING"] = PowerShellQuote(layout.StagingFolder(plan.To)),
             ["ITEMS"] = string.Join(", ", layout.Items.Select(PowerShellQuote)),
@@ -91,6 +92,7 @@ public static partial class ReplacementScript
             ["QUIT"] = QuitSeconds.ToString(CultureInfo.InvariantCulture),
             ["BUNDLE"] = ShellQuote(layout.AppPath),
             ["BACKUP"] = ShellQuote(layout.BackupPath),
+            ["MARKER"] = ShellQuote(layout.RestoreFailedMarker),
             ["STAGED"] = ShellQuote(plan.StagedApp),
             ["STAGING"] = ShellQuote(layout.StagingFolder(plan.To)),
             ["CONFIRM"] = ShellQuote(plan.ConfirmFile),
@@ -167,6 +169,7 @@ public static partial class ReplacementScript
         $processId = @PID@
         $install = @INSTALL@
         $backup = @BACKUP@
+        $marker = @MARKER@
         $staged = @STAGED@
         $staging = @STAGING@
         $items = @(@ITEMS@)
@@ -343,8 +346,14 @@ public static partial class ReplacementScript
             }
         }
         # Started again, the old version would delete the backup as a leftover, and it may hold the only copy of its files.
+        # The marker tells every later start to keep it and say where it is.
         if (-not $restored) {
             Write-Log ('Could not restore version @FROM@: it stays in ' + $backup + ' and version @TO@ in ' + $staging + '; ShowTime is not started again')
+            try {
+                [System.IO.File]::WriteAllText($marker, $backup)
+            } catch {
+                Write-Log ('Could not write ' + $marker + ': ' + $_.Exception.Message)
+            }
             exit 2
         }
         Remove-Entry $backup
@@ -366,6 +375,7 @@ public static partial class ReplacementScript
         pid=@PID@
         bundle=@BUNDLE@
         backup=@BACKUP@
+        marker=@MARKER@
         staged=@STAGED@
         staging=@STAGING@
         confirm=@CONFIRM@
@@ -425,8 +435,10 @@ public static partial class ReplacementScript
             fi
           fi
           # Started again, the old version would delete the backup as a leftover, and it may be its only copy.
+          # The marker tells every later start to keep it and say where it is.
           if [ "$restored" = no ]; then
             say "Could not restore version @FROM@: it stays in $backup and version @TO@ in $staging; ShowTime is not started again"
+            printf '%s\n' "$backup" > "$marker" || say "Could not write $marker"
             exit 2
           fi
           rm -rf "$backup"

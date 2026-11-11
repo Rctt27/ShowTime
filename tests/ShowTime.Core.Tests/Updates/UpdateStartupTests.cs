@@ -80,6 +80,56 @@ public sealed class UpdateStartupTests
         _log.Entries.ShouldContain(e => e.Level == LogLevel.Error);
     }
 
+    [Theory]
+    [InlineData]
+    [InlineData("--update-failed", "0.7.0")]
+    public void After_an_incomplete_restore_the_backup_is_kept_and_its_place_shown(params string[] args)
+    {
+        // The script could not put the old version back: the backup may be its only copy.
+        _fs.AddFile(_layout.RestoreFailedMarker, new MockFileData(_layout.BackupPath + "\n"));
+
+        Run(args);
+
+        _dialogs.Received(1).ShowWarning(
+            $"La mise à jour n'a pas pu être annulée entièrement : l'ancienne version est conservée dans {_layout.BackupPath}.");
+        _dialogs.ReceivedCalls().Count().ShouldBe(1);
+        _fs.Directory.Exists(_staging).ShouldBeTrue();
+        _fs.Directory.Exists(_layout.BackupPath).ShouldBeTrue();
+        _fs.File.Exists(_layout.RestoreFailedMarker).ShouldBeTrue();
+        _log.Entries.ShouldContain(e => e.Level == LogLevel.Warning);
+    }
+
+    [Fact]
+    public void An_empty_marker_names_the_layouts_backup()
+    {
+        _fs.AddFile(_layout.RestoreFailedMarker, new MockFileData(""));
+
+        Run();
+
+        _dialogs.Received(1).ShowWarning(
+            $"La mise à jour n'a pas pu être annulée entièrement : l'ancienne version est conservée dans {_layout.BackupPath}.");
+        _fs.Directory.Exists(_layout.BackupPath).ShouldBeTrue();
+    }
+
+    [Fact]
+    public void The_marker_is_not_a_leftover()
+    {
+        _fs.AddFile(_layout.RestoreFailedMarker, new MockFileData(_layout.BackupPath));
+
+        _layout.Leftovers(_fs).ShouldNotContain(_layout.RestoreFailedMarker);
+    }
+
+    [Fact]
+    public void The_new_version_still_confirms_while_a_marker_is_there()
+    {
+        _fs.AddFile(_layout.RestoreFailedMarker, new MockFileData(_layout.BackupPath));
+        var confirm = Path.Combine(_staging, "confirmed");
+
+        Run("--update-confirm", confirm);
+
+        _fs.File.Exists(confirm).ShouldBeTrue();
+    }
+
     [Fact]
     public void A_failed_update_is_reported_with_the_current_version_and_its_leftovers_deleted()
     {

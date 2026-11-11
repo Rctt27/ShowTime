@@ -154,6 +154,9 @@ public sealed class ReplacementScriptTests
 
         var windowsGiveUp = windows.IndexOf("if (-not $restored) {", StringComparison.Ordinal);
         windowsGiveUp.ShouldBeGreaterThan(0);
+        windows.ShouldContain(@"$marker = 'C:\Tools\ShowTime\.update-failed'", Case.Sensitive);
+        windows.IndexOf("[System.IO.File]::WriteAllText($marker, $backup)", windowsGiveUp, StringComparison.Ordinal)
+            .ShouldBeLessThan(windows.IndexOf("exit 2", windowsGiveUp, StringComparison.Ordinal));
         windows.IndexOf("exit 2", windowsGiveUp, StringComparison.Ordinal)
             .ShouldBeLessThan(windows.IndexOf("Remove-Entry $staging", windowsGiveUp, StringComparison.Ordinal));
         windows.IndexOf("exit 2", windowsGiveUp, StringComparison.Ordinal)
@@ -162,6 +165,10 @@ public sealed class ReplacementScriptTests
 
         var macGiveUp = mac.IndexOf("if [ \"$restored\" = no ]; then", StringComparison.Ordinal);
         macGiveUp.ShouldBeGreaterThan(0);
+        mac.ShouldContain("marker='/Applications/.ShowTime-update-failed'", Case.Sensitive);
+        var writesMarker = mac.IndexOf(@"printf '%s\n' ""$backup"" > ""$marker""", macGiveUp, StringComparison.Ordinal);
+        writesMarker.ShouldBeGreaterThan(macGiveUp);
+        writesMarker.ShouldBeLessThan(mac.IndexOf("exit 2", macGiveUp, StringComparison.Ordinal));
         var macExit = mac.IndexOf("exit 2", macGiveUp, StringComparison.Ordinal);
         macExit.ShouldBeLessThan(mac.IndexOf("rm -rf \"$backup\"", macGiveUp, StringComparison.Ordinal));
         macExit.ShouldBeLessThan(mac.IndexOf("rm -rf \"$staging\"", macGiveUp, StringComparison.Ordinal));

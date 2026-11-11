@@ -14,6 +14,8 @@ public sealed record UpdateLayout(UpdatePlatform Platform, string AppPath)
     private const string WindowsBackupName = ".old";
     private const string MacStagingPrefix = ".ShowTime-update-";
     private const string MacBackupName = ".ShowTime-old.app";
+    private const string WindowsRestoreFailedName = ".update-failed";
+    private const string MacRestoreFailedName = ".ShowTime-update-failed";
 
     /// <summary>The app's path, without a trailing separator (<c>AppContext.BaseDirectory</c> ends with one).</summary>
     public string AppPath { get; init; } = AppPath.TrimEnd('\\', '/');
@@ -41,6 +43,13 @@ public sealed record UpdateLayout(UpdatePlatform Platform, string AppPath)
 
     /// <summary>Windows: the folder the replaced items are moved into; macOS: the replaced bundle's new path.</summary>
     public string BackupPath => Join(BackupName);
+
+    /// <summary>
+    /// A file the replacement script writes when it could not put the old version back, holding the backup's path: the
+    /// backup is then kept rather than deleted as a leftover.
+    /// </summary>
+    public string RestoreFailedMarker =>
+        Join(Platform == UpdatePlatform.WindowsX64 ? WindowsRestoreFailedName : MacRestoreFailedName);
 
     /// <summary>
     /// The names of what an update replaces, in <see cref="Folder"/>. Windows: the files of the zip, so that what the
