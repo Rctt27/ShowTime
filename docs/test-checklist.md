@@ -175,6 +175,7 @@ Le réglage « Après une capture » revient à « Ouvrir dans l'éditeur » (`"
 - [ ] Réglages : le champ « Surligner (maintenir) » prend une autre combinaison, accepte `Espace` seul (avec l'avertissement), et « Raccourcis par défaut » remet `Option+Space`.
 - [ ] « Enregistrer une vidéo (tout l'écran) » dans le menu ; puis, avec un second écran, une vidéo d'une zone sur le second écran : c'est bien cet écran qui est filmé.
 - [ ] `Ctrl+Maj+R` démarre (compte à rebours 3, 2, 1), `Ctrl+Maj+D` arrête ; « Annuler » n'enregistre rien.
+- [ ] Au clic : « Démarrer » lance le compte à rebours ; dès que le compteur tourne, « Démarrer » a disparu et « Arrêter » est là et arrête la vidéo d'un clic. À vérifier sur plusieurs vidéos de suite, ShowTime venant d'être lancé : à partir de la deuxième, ffmpeg capture avant 0 et l'enregistrement commence sans « Démarrage… ».
 - [ ] La vidéo s'ouvre dans la fenêtre d'aperçu et se lit dedans (survol de la barre de temps : aperçu des images ; plein écran) ; `Espace` lit ou met en pause, `←` / `→` reculent ou avancent de 5 secondes (pas d'une image), `Début` revient au début ; `Échap` ferme.
 - [ ] « Afficher dans le Finder » ; « Supprimer » (après confirmation) met la vidéo à la Corbeille ; « Refaire » la met à la Corbeille et relance une vidéo de la même façon.
 - [ ] « Quitter ShowTime » pendant un enregistrement demande s'il faut l'arrêter et garder la vidéo ; « Annuler » laisse l'enregistrement continuer.
