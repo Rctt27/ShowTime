@@ -1,3 +1,4 @@
+using System.Text.Json;
 using System.Text.Json.Nodes;
 using ShowTime.Core.Updates;
 
@@ -45,8 +46,6 @@ public sealed class GitHubReleaseTests
 
     public static TheoryData<string> Unusable() => new()
     {
-        "{ not json",
-        "[]",
         Modified(j => j["prerelease"] = true),
         Modified(j => j["draft"] = true),
         Modified(j => j["tag_name"] = "v0.7.0-rc1"),
@@ -60,4 +59,19 @@ public sealed class GitHubReleaseTests
     [MemberData(nameof(Unusable))]
     public void Parse_returns_null_when_the_release_cannot_be_installed(string json) =>
         GitHubRelease.Parse(json, UpdatePlatform.WindowsX64).ShouldBeNull();
+
+    public static TheoryData<string> Unreadable() => new()
+    {
+        "",
+        "{ not json",
+        "[]",
+        "null",
+        "{}",
+        Modified(j => j.Remove("tag_name")),
+    };
+
+    [Theory]
+    [MemberData(nameof(Unreadable))]
+    public void Parse_throws_when_the_answer_is_not_a_release(string json) =>
+        Should.Throw<JsonException>(() => GitHubRelease.Parse(json, UpdatePlatform.WindowsX64));
 }

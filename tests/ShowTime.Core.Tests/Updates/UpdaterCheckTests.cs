@@ -103,12 +103,64 @@ public sealed class UpdaterCheckTests : IDisposable
     [Fact]
     public void An_unusable_release_offers_nothing()
     {
-        _feed.Json = "{ not json";
+        // A pre-release is a valid answer: nothing to offer, and no need to ask again for 15 minutes.
+        var json = System.Text.Json.Nodes.JsonNode.Parse(UpdateFixtures.Release063)!.AsObject();
+        json["prerelease"] = true;
+        _feed.Json = json.ToJsonString();
+        var updater = Started();
+
+        _clock.Advance(Updater.StartupDelay);
+        updater.MenuOpening();
+
+        _feed.Calls.ShouldBe(1);
+        updater.State.Stage.ShouldBe(UpdateStage.Idle);
+        _log.Entries.ShouldNotContain(e => e.Level == LogLevel.Warning);
+    }
+
+    [Fact]
+    public void An_unreadable_answer_is_a_failure_and_retries_on_next_menu_opening()
+    {
+        _feed.Json = "<html>Unicorn!</html>";
         var updater = Started();
 
         _clock.Advance(Updater.StartupDelay);
 
         updater.State.Stage.ShouldBe(UpdateStage.Idle);
+        _dialogs.ReceivedCalls().ShouldBeEmpty();
+        _log.Entries.ShouldContain(e => e.Level == LogLevel.Warning);
+
+        _feed.Json = UpdateFixtures.Release063;
+        _clock.Advance(TimeSpan.FromMinutes(1));
+        updater.MenuOpening();
+
+        _feed.Calls.ShouldBe(2);
+        updater.State.Stage.ShouldBe(UpdateStage.Available);
+    }
+
+    [Fact]
+    public void An_unreadable_answer_keeps_a_version_already_offered()
+    {
+        var updater = Started();
+        _clock.Advance(Updater.StartupDelay);
+
+        _feed.Json = "{}";
+        _clock.Advance(Updater.Interval);
+
+        _feed.Calls.ShouldBe(2);
+        updater.State.Stage.ShouldBe(UpdateStage.Available);
+    }
+
+    [Fact]
+    public void A_manual_check_reports_an_unreadable_answer()
+    {
+        _settings.CheckForUpdates = false;
+        _feed.Json = "{ not json";
+        var updater = Create("0.6.3");
+
+        updater.CheckNowAsync().IsCompletedSuccessfully.ShouldBeTrue();
+
+        _dialogs.Received(1).ShowError("Impossible de vérifier les mises à jour : la réponse de GitHub est illisible.");
+        _dialogs.DidNotReceiveWithAnyArgs().ShowInfo(default!);
     }
 
     [Fact]

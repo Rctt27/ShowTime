@@ -1,4 +1,5 @@
 using System.IO.Abstractions;
+using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
@@ -130,7 +131,8 @@ public sealed class Updater(
         }
         catch (Exception ex)
         {
-            // HttpRequestException, or the feed's timeout; whatever it is, the next check tries again.
+            // HttpRequestException, the feed's timeout, or an answer that is not a release (JsonException);
+            // whatever it is, the next check tries again.
             result = new CheckResult(null, ex);
         }
 
@@ -181,6 +183,7 @@ public sealed class Updater(
         OperationCanceledException => "GitHub n'a pas répondu à temps.",
         HttpRequestException { StatusCode: { } status } => $"GitHub a répondu {(int)status}.",
         HttpRequestException => "GitHub est injoignable. Vérifiez la connexion à Internet.",
+        JsonException => "la réponse de GitHub est illisible.",
         _ => failure.Message,
     };
 

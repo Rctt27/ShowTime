@@ -29,22 +29,17 @@ public static class GitHubRelease
     };
 
     /// <summary>
-    /// The release for a platform, or null when the answer is not usable: invalid JSON, a draft, a pre-release,
-    /// a tag that is not <c>vX.Y.Z</c>, or no asset with a SHA-256 digest for the platform.
+    /// The release for a platform, or null when the release cannot be installed: a draft, a pre-release, a tag that is
+    /// not <c>vX.Y.Z</c>, or no asset with a SHA-256 digest for the platform.
     /// </summary>
+    /// <exception cref="JsonException">The answer is not a release: invalid JSON, or no <c>tag_name</c>.</exception>
     public static ReleaseInfo? Parse(string json, UpdatePlatform platform)
     {
-        GitHubReleaseDto? release;
-        try
-        {
-            release = JsonSerializer.Deserialize(json, UpdateJsonContext.Default.GitHubReleaseDto);
-        }
-        catch (JsonException)
-        {
-            return null;
-        }
+        var release = JsonSerializer.Deserialize(json, UpdateJsonContext.Default.GitHubReleaseDto);
+        if (release?.TagName is null)
+            throw new JsonException("The answer is not a GitHub release: it has no tag_name.");
 
-        if (release is null || release.Draft || release.Prerelease
+        if (release.Draft || release.Prerelease
             || !SemanticVersion.TryParse(release.TagName, out var version)
             || !Uri.TryCreate(release.HtmlUrl, UriKind.Absolute, out var pageUrl))
         {
