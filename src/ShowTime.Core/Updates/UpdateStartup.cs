@@ -73,7 +73,7 @@ public static class UpdateStartup
     }
 
     /// <summary>The backup's path, as the script wrote it in the marker; the layout's when it cannot be read.</summary>
-    private static string ReadBackupPath(UpdateLayout layout, IFileSystem fileSystem)
+    internal static string ReadBackupPath(UpdateLayout layout, IFileSystem fileSystem)
     {
         try
         {

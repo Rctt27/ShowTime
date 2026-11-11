@@ -369,13 +369,21 @@ internal sealed class FakeUpdateDownloader(System.IO.Abstractions.IFileSystem fi
     /// <summary>When set, each download waits until the test completes it.</summary>
     public TaskCompletionSource? Pending { get; set; }
 
+    /// <summary>When set, notes "Download" there, to check the order of the calls across the fakes.</summary>
+    public List<string>? Journal { get; set; }
+
     public async Task DownloadAsync(Uri url, string destinationFile, IProgress<double> progress, CancellationToken cancellationToken)
     {
         Calls.Add((url, destinationFile));
+        Journal?.Add("Download");
         foreach (var value in Progress)
             progress.Report(value);
         if (Pending is not null)
-            await Pending.Task.WaitAsync(cancellationToken);
+        {
+            // Inline: the rest runs on the thread that completes or cancels it, before the test's next line.
+            await Pending.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
         if (Failure is not null)
             throw Failure;
         fileSystem.File.WriteAllBytes(destinationFile, Content);
@@ -388,20 +396,31 @@ internal sealed class FakeUpdateInstaller : IUpdateInstaller
     public UpdateLayout Layout { get; set; } = new(UpdatePlatform.WindowsX64, @"C:\ShowTime");
     public bool CanReplace { get; set; } = true;
     public Exception? StageFailure { get; set; }
+    public Exception? ReplacementFailure { get; set; }
     public List<(string Zip, string Staging)> Staged { get; } = [];
     public List<ReplacementPlan> Replacements { get; } = [];
+
+    /// <summary>When set, notes "Stage" and "StartReplacement" there.</summary>
+    public List<string>? Journal { get; set; }
 
     public bool CanReplaceApp() => CanReplace;
 
     public Task<string> StageAsync(string zipFile, string stagingFolder, CancellationToken cancellationToken)
     {
         Staged.Add((zipFile, stagingFolder));
+        Journal?.Add("Stage");
         return StageFailure is not null
             ? Task.FromException<string>(StageFailure)
             : Task.FromResult(Path.Combine(stagingFolder, "ShowTime"));
     }
 
-    public void StartReplacement(ReplacementPlan plan) => Replacements.Add(plan);
+    public void StartReplacement(ReplacementPlan plan)
+    {
+        Journal?.Add("StartReplacement");
+        if (ReplacementFailure is not null)
+            throw ReplacementFailure;
+        Replacements.Add(plan);
+    }
 }
 
 internal sealed class FakeUpdateHost : IUpdateHost
@@ -411,13 +430,26 @@ internal sealed class FakeUpdateHost : IUpdateHost
     public int Quits { get; private set; }
     public List<Uri> Opened { get; } = [];
 
+    /// <summary>When set, notes "TryCloseWindows" and "Quit" there.</summary>
+    public List<string>? Journal { get; set; }
+
+    /// <summary>Runs while the windows are being closed, as the user could while an editor asks about unsaved work.</summary>
+    public Action? Closing { get; set; }
+
     public bool TryCloseWindows()
     {
         CloseRequests++;
+        Journal?.Add("TryCloseWindows");
+        Closing?.Invoke();
         return CloseWindows;
     }
 
-    public void Quit() => Quits++;
+    public void Quit()
+    {
+        Quits++;
+        Journal?.Add("Quit");
+    }
+
     public void OpenInBrowser(Uri url) => Opened.Add(url);
 }
 

@@ -36,19 +36,17 @@ public sealed class Updater(
     public static readonly TimeSpan Freshness = TimeSpan.FromMinutes(15);
 
     private const string CheckFailedMessage = "Impossible de vérifier les mises à jour : ";
+    private const string DownloadFailedMessage = "La mise à jour n'a pas pu être téléchargée : ";
+    private const string InstallFailedMessage = "La mise à jour n'a pas pu être installée : ";
+    private const string ZipName = "ShowTime.zip";
+    private const string ScriptLogName = "update.log";
 
     private readonly CancellationTokenSource _disposing = new();
     private ITimer? _schedule;
     private TaskCompletionSource<CheckResult>? _check;
     private DateTimeOffset? _lastAnswer;
+    private string? _stagedApp;
     private bool _disposed;
-
-    // Used by the install, which comes next.
-    private readonly IUpdateDownloader _downloader = downloader;
-    private readonly IUpdateHost _host = host;
-    private readonly IRecordingStatus _recording = recording;
-    private readonly IFileSystem _fileSystem = fileSystem;
-    private readonly IAppPaths _paths = paths;
 
     public UpdateState State { get; private set; } = UpdateState.Idle;
 
@@ -85,8 +83,48 @@ public sealed class Updater(
             dialogs.ShowInfo($"ShowTime est à jour (version {current}).");
     }
 
-    /// <summary>Downloads and installs the version offered.</summary>
-    public Task InstallAsync() => throw new NotImplementedException();
+    /// <summary>
+    /// The menu's « Installer la version X.Y.Z »: downloads, checks and stages the version offered, then, once no
+    /// recording is under way and the windows have closed, starts the replacement and quits. From
+    /// <see cref="UpdateStage.Downloaded"/>, installs what was staged without downloading again; does nothing otherwise.
+    /// </summary>
+    public async Task InstallAsync()
+    {
+        if (_disposed || State is not { Stage: UpdateStage.Available or UpdateStage.Downloaded, Release: { } release })
+            return;
+
+        var layout = installer.Layout;
+        if (fileSystem.File.Exists(layout.RestoreFailedMarker))
+        {
+            // The backup may be the only copy of the old version left: a new update would replace it.
+            var backup = UpdateStartup.ReadBackupPath(layout, fileSystem);
+            if (log.IsEnabled(LogLevel.Warning))
+                log.LogWarning("Update to {Version} refused: an earlier one could not be undone, see {Backup}", release.Version, backup);
+            dialogs.ShowWarning(
+                $"Une mise à jour précédente n'a pas pu être annulée entièrement : l'ancienne version est conservée dans {backup}. Déplacez ou supprimez ce dossier avant de mettre à jour.");
+            return;
+        }
+
+        if (!installer.CanReplaceApp())
+        {
+            if (log.IsEnabled(LogLevel.Information))
+                log.LogInformation("Cannot replace the app in {Folder}; opening the page of version {Version}", layout.AppPath, release.Version);
+            dialogs.ShowInfo(
+                $"ShowTime ne peut pas se remplacer dans ce dossier : la page de la version {release.Version} s'ouvre dans le navigateur.");
+            host.OpenInBrowser(release.PageUrl);
+            return;
+        }
+
+        if (State.Stage == UpdateStage.Available)
+        {
+            // DownloadAsync ends on the UI thread, so this goes on there.
+            _stagedApp = await DownloadAsync(release).ConfigureAwait(false);
+            if (_stagedApp is null)
+                return;
+        }
+
+        InstallWhenIdle();
+    }
 
     public void Dispose()
     {
@@ -94,6 +132,12 @@ public sealed class Updater(
             return;
         _disposed = true;
         _schedule?.Dispose();
+        recording.StateChanged -= OnRecordingChanged;
+
+        // A download under way deletes its staging folder once cancelled; a staged version waiting to be installed is
+        // deleted here. Once installing, the replacement script needs it.
+        if (State is { Stage: UpdateStage.WaitingForRecording or UpdateStage.Downloaded, Release: { } release })
+            DeleteStaging(installer.Layout.StagingFolder(release.Version));
         _disposing.Cancel();
         _disposing.Dispose();
     }
@@ -170,6 +214,153 @@ public sealed class Updater(
             SetState(offered is null ? UpdateState.Idle : new UpdateState(UpdateStage.Available, offered, 0));
     }
 
+    /// <summary>
+    /// Downloads, checks and stages <paramref name="release"/>; returns the staged app, or null when that failed (said to
+    /// the user, staging folder deleted, the version offered again) or ShowTime is quitting. Ends on the UI thread.
+    /// </summary>
+    private async Task<string?> DownloadAsync(ReleaseInfo release)
+    {
+        var staging = installer.Layout.StagingFolder(release.Version);
+        var cancellation = _disposing.Token;
+        SetState(new UpdateState(UpdateStage.Downloading, release, 0));
+        if (log.IsEnabled(LogLevel.Information))
+            log.LogInformation("Downloading version {Version} from {Url}", release.Version, release.DownloadUrl);
+
+        string? staged = null;
+        Exception? failure = null;
+        try
+        {
+            staged = await DownloadAndStageAsync(release, staging, cancellation).ConfigureAwait(false);
+        }
+        catch (Exception ex)
+        {
+            // A network or disk failure, a file that is not the one announced, a staging the installer refused, or
+            // Dispose: whatever it is, nothing half-done is kept.
+            failure = ex;
+            DeleteStaging(staging);
+        }
+
+        await OnUiThread().ConfigureAwait(false);
+        if (_disposed)
+            return null;
+        if (failure is not null)
+        {
+            if (log.IsEnabled(LogLevel.Warning))
+                log.LogWarning(failure, "Could not download version {Version}", release.Version);
+            SetState(new UpdateState(UpdateStage.Available, release, 0));
+            dialogs.ShowError(DownloadFailedMessage + Reason(failure));
+            return null;
+        }
+
+        if (log.IsEnabled(LogLevel.Information))
+            log.LogInformation("Version {Version} downloaded, checked and staged in {Staging}", release.Version, staging);
+        return staged;
+    }
+
+    /// <summary>Runs off the UI thread once the download has started: the digest of a 200 MB file takes a moment.</summary>
+    private async Task<string> DownloadAndStageAsync(ReleaseInfo release, string staging, CancellationToken cancellation)
+    {
+        // A folder left by an attempt that could not clean up would mix its files with the new ones.
+        DeleteStaging(staging);
+        fileSystem.Directory.CreateDirectory(staging);
+        var zip = fileSystem.Path.Combine(staging, ZipName);
+
+        await downloader.DownloadAsync(release.DownloadUrl, zip, new PostedProgress(uiThread, ShowProgress), cancellation)
+            .ConfigureAwait(false);
+        if (!DownloadCheck.Matches(fileSystem, zip, release.Size, release.Sha256))
+            throw new UpdateException("le fichier téléchargé est incomplet ou altéré");
+
+        var staged = await installer.StageAsync(zip, staging, cancellation).ConfigureAwait(false);
+        fileSystem.File.Delete(zip);
+        cancellation.ThrowIfCancellationRequested();
+        return staged;
+    }
+
+    private void ShowProgress(double progress)
+    {
+        if (!_disposed && State.Stage == UpdateStage.Downloading)
+            SetState(State with { Progress = progress });
+    }
+
+    /// <summary>Installs what was staged once no recording is under way, closing the windows first.</summary>
+    private void InstallWhenIdle()
+    {
+        var release = State.Release!;
+        if (recording.IsBusy)
+        {
+            if (State.Stage != UpdateStage.WaitingForRecording)
+            {
+                recording.StateChanged += OnRecordingChanged;
+                if (log.IsEnabled(LogLevel.Information))
+                    log.LogInformation("Version {Version} will be installed once the recording has ended", release.Version);
+                SetState(State with { Stage = UpdateStage.WaitingForRecording });
+            }
+
+            return;
+        }
+
+        recording.StateChanged -= OnRecordingChanged;
+
+        // Installing already while the windows ask about unsaved work: their questions let the menu be clicked again.
+        SetState(State with { Stage = UpdateStage.Installing });
+        if (!host.TryCloseWindows())
+        {
+            // An editor the user chose to keep: the next click installs what is staged.
+            if (log.IsEnabled(LogLevel.Information))
+                log.LogInformation("Install of version {Version} put off: a window was kept open", release.Version);
+            SetState(State with { Stage = UpdateStage.Downloaded });
+            return;
+        }
+
+        var plan = ReplacementPlan.For(Environment.ProcessId, installer.Layout, _stagedApp!, current, release.Version,
+            fileSystem.Path.Combine(paths.LogsFolder, ScriptLogName));
+        try
+        {
+            installer.StartReplacement(plan);
+        }
+        catch (Exception ex)
+        {
+            // The script did not start: ShowTime keeps running, and the staged version stays for another click.
+            log.LogError(ex, "Could not start the replacement by version {Version}", release.Version);
+            SetState(State with { Stage = UpdateStage.Downloaded });
+            dialogs.ShowError(InstallFailedMessage + Reason(ex));
+            return;
+        }
+
+        if (log.IsEnabled(LogLevel.Information))
+            log.LogInformation("Replacing version {Current} with {Version}; quitting", current, release.Version);
+        host.Quit();
+    }
+
+    /// <summary>The recording session may raise this mid-transition: the install goes on outside its handlers.</summary>
+    private void OnRecordingChanged(object? sender, EventArgs e) => uiThread.Post(() =>
+    {
+        if (!_disposed && State.Stage == UpdateStage.WaitingForRecording && !recording.IsBusy)
+            InstallWhenIdle();
+    });
+
+    private void DeleteStaging(string staging)
+    {
+        try
+        {
+            if (fileSystem.Directory.Exists(staging))
+                fileSystem.Directory.Delete(staging, recursive: true);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            // The next start deletes it with what other updates left.
+            log.LogWarning(ex, "Could not delete {Staging}", staging);
+        }
+    }
+
+    /// <summary>Completes on the UI thread: awaited with <c>ConfigureAwait(false)</c>, what follows runs there.</summary>
+    private Task OnUiThread()
+    {
+        var reached = new TaskCompletionSource();
+        uiThread.Post(reached.SetResult);
+        return reached.Task;
+    }
+
     private void SetState(UpdateState state)
     {
         if (state == State)
@@ -188,4 +379,10 @@ public sealed class Updater(
     };
 
     private sealed record CheckResult(ReleaseInfo? Release, Exception? Failure);
+
+    /// <summary>Reports the downloader's progress on the UI thread.</summary>
+    private sealed class PostedProgress(IUiThread uiThread, Action<double> show) : IProgress<double>
+    {
+        public void Report(double value) => uiThread.Post(() => show(value));
+    }
 }
