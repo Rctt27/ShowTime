@@ -173,16 +173,21 @@ internal sealed class RecordingBar : NSPanel
         UpdateAudioToggles();
     }
 
+    /// <summary>ffmpeg is launched but not capturing yet: Stop already works, the counter waits.</summary>
     public void ShowStarting()
     {
         _status.StringValue = "Démarrage…";
-        _start.Hidden = true;
-        _stop.Hidden = false;
-        Fit();
+        ShowStop();
     }
 
+    /// <summary>Capture has begun: what is said from now on is in the video.</summary>
+    /// <remarks>
+    /// Usually straight from the countdown, without <see cref="ShowStarting"/>: ffmpeg captures before 0. Stop must
+    /// then appear here too, otherwise only the shortcut could end the recording.
+    /// </remarks>
     public void ShowRecording()
     {
+        ShowStop();
         _dot.AlphaValue = 1;
         _elapsed.Start();
         _status.StringValue = "Enregistrement  00:00.0";
@@ -218,6 +223,13 @@ internal sealed class RecordingBar : NSPanel
         StopTimer();
         OrderOut(null);
         Close();
+    }
+
+    private void ShowStop()
+    {
+        _start.Hidden = true;
+        _stop.Hidden = false;
+        Fit();
     }
 
     private void StopTimer()
