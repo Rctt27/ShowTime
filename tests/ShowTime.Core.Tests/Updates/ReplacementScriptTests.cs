@@ -122,4 +122,50 @@ public sealed class ReplacementScriptTests
         windows.ShouldContain("$confirmSeconds = 3\r\n", Case.Sensitive);
         mac.ShouldContain("confirm_seconds=3\n", Case.Sensitive);
     }
+
+    [Fact]
+    public void The_macOS_rollback_waits_for_the_new_version_to_quit_before_relaunching()
+    {
+        // The old version quits at once while a process with its bundle identifier is alive.
+        var script = ReplacementScript.ForMacOS(MacPlan());
+        const string Pattern = @"'/Applications/ShowTime\.app/Contents/MacOS/ShowTime'";
+        var rollBack = script[script.IndexOf("roll_back() {", StringComparison.Ordinal)..];
+
+        var term = rollBack.IndexOf("pkill -f " + Pattern, StringComparison.Ordinal);
+        var wait = rollBack.IndexOf("wait_for_new_version_to_quit", StringComparison.Ordinal);
+        var kill = rollBack.IndexOf("pkill -9 -f " + Pattern, StringComparison.Ordinal);
+        var restore = rollBack.IndexOf("mv \"$backup\" \"$bundle\"", StringComparison.Ordinal);
+        var relaunch = rollBack.IndexOf("'open' '-n' '/Applications/ShowTime.app' '--args' '--update-failed'", StringComparison.Ordinal);
+
+        script.ShouldContain("while pgrep -f " + Pattern + " >/dev/null 2>&1; do", Case.Sensitive);
+        term.ShouldBeGreaterThan(0);
+        wait.ShouldBeGreaterThan(term);
+        kill.ShouldBeGreaterThan(wait);
+        restore.ShouldBeGreaterThan(kill);
+        relaunch.ShouldBeGreaterThan(restore);
+    }
+
+    [Fact]
+    public void A_restore_that_fails_keeps_the_backup_and_the_staging_folder_and_relaunches_nothing()
+    {
+        // The relaunched version would delete the backup as a leftover: it may be the only copy of the old version.
+        var windows = ReplacementScript.ForWindows(WindowsPlan());
+        var mac = ReplacementScript.ForMacOS(MacPlan());
+
+        var windowsGiveUp = windows.IndexOf("if (-not $restored) {", StringComparison.Ordinal);
+        windowsGiveUp.ShouldBeGreaterThan(0);
+        windows.IndexOf("exit 2", windowsGiveUp, StringComparison.Ordinal)
+            .ShouldBeLessThan(windows.IndexOf("Remove-Entry $staging", windowsGiveUp, StringComparison.Ordinal));
+        windows.IndexOf("exit 2", windowsGiveUp, StringComparison.Ordinal)
+            .ShouldBeLessThan(windows.IndexOf("Start-Command $oldFile", StringComparison.Ordinal));
+        windows.ShouldContain("$restored = $false\r\n        Write-Log ('Could not remove the new '", Case.Sensitive);
+
+        var macGiveUp = mac.IndexOf("if [ \"$restored\" = no ]; then", StringComparison.Ordinal);
+        macGiveUp.ShouldBeGreaterThan(0);
+        var macExit = mac.IndexOf("exit 2", macGiveUp, StringComparison.Ordinal);
+        macExit.ShouldBeLessThan(mac.IndexOf("rm -rf \"$backup\"", macGiveUp, StringComparison.Ordinal));
+        macExit.ShouldBeLessThan(mac.IndexOf("rm -rf \"$staging\"", macGiveUp, StringComparison.Ordinal));
+        macExit.ShouldBeLessThan(mac.IndexOf("'--update-failed'", StringComparison.Ordinal));
+        mac.ShouldContain("restored=no\n      say \"Could not remove the new version", Case.Sensitive);
+    }
 }

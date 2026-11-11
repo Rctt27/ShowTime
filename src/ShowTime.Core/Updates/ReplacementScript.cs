@@ -321,15 +321,16 @@ public static partial class ReplacementScript
             Write-Log ('Could not stop ShowTime: ' + $_.Exception.Message)
         }
 
+        $restored = $true
         for ($i = $movedIn.Count - 1; $i -ge 0; $i--) {
             $item = $movedIn[$i]
             try {
                 Move-Entry ([System.IO.Path]::Combine($install, $item)) ([System.IO.Path]::Combine($staged, $item))
             } catch {
+                $restored = $false
                 Write-Log ('Could not remove the new ' + $item + ': ' + $_.Exception.Message)
             }
         }
-        $restored = $true
         for ($i = $movedOut.Count - 1; $i -ge 0; $i--) {
             $item = $movedOut[$i]
             $path = [System.IO.Path]::Combine($install, $item)
@@ -341,11 +342,12 @@ public static partial class ReplacementScript
                 Write-Log ('Could not put back ' + $item + ': ' + $_.Exception.Message)
             }
         }
-        if ($restored) {
-            Remove-Entry $backup
-        } else {
-            Write-Log ('The old version stays in ' + $backup)
+        # Started again, the old version would delete the backup as a leftover, and it may hold the only copy of its files.
+        if (-not $restored) {
+            Write-Log ('Could not restore version @FROM@: it stays in ' + $backup + ' and version @TO@ in ' + $staging + '; ShowTime is not started again')
+            exit 2
         }
+        Remove-Entry $backup
         Remove-Entry $staging
 
         Write-Log 'Starting version @FROM@ again'
@@ -378,6 +380,19 @@ public static partial class ReplacementScript
         moved_in=no
         new_pid=
 
+        # Waits up to 5 s for the new version to quit.
+        wait_for_new_version_to_quit() {
+          tries=0
+          while pgrep -f @PROCESS@ >/dev/null 2>&1; do
+            if [ "$tries" -ge 25 ]; then
+              return 1
+            fi
+            tries=$((tries + 1))
+            sleep 0.2
+          done
+          return 0
+        }
+
         # Stops the new version, puts back what was moved, starts the old version again.
         roll_back() {
           say "Failed: $1"
@@ -385,12 +400,19 @@ public static partial class ReplacementScript
           if [ -n "$new_pid" ]; then
             kill "$new_pid" 2>/dev/null
           fi
+          # The old version quits at once while a process with its bundle identifier is running.
           pkill -f @PROCESS@ 2>/dev/null
+          if ! wait_for_new_version_to_quit; then
+            say "The new version did not quit: killing it"
+            pkill -9 -f @PROCESS@ 2>/dev/null
+            wait_for_new_version_to_quit || say "The new version is still running"
+          fi
           restored=yes
           if [ "$moved_in" = yes ]; then
-            if mv "$bundle" "$staged"; then
+            if [ ! -e "$staged" ] && mv "$bundle" "$staged"; then
               say "Moved $bundle to $staged"
             else
+              restored=no
               say "Could not remove the new version from $bundle"
             fi
           fi
@@ -402,11 +424,12 @@ public static partial class ReplacementScript
               say "Could not put back $bundle"
             fi
           fi
-          if [ "$restored" = yes ]; then
-            rm -rf "$backup"
-          else
-            say "The old version stays in $backup"
+          # Started again, the old version would delete the backup as a leftover, and it may be its only copy.
+          if [ "$restored" = no ]; then
+            say "Could not restore version @FROM@: it stays in $backup and version @TO@ in $staging; ShowTime is not started again"
+            exit 2
           fi
+          rm -rf "$backup"
           rm -rf "$staging"
           say "Starting version @FROM@ again"
           @OLD@ </dev/null >/dev/null 2>&1 &
