@@ -443,7 +443,7 @@ internal sealed class SettingsWindowController : NSWindowController
             SettingsForm.FrameRates[(int)Math.Max(0, _frameRate.IndexOfSelectedItem)],
             _transcribe.State == NSCellStateValue.On,
             SettingsForm.TranscriptionLanguages[(int)Math.Max(0, _language.IndexOfSelectedItem)].Code, _model.StringValue,
-            _highlightStyle);
+            _highlightStyle, _context.Settings.CheckForUpdates);
         if (_context.Editor.TryApply(form) is { } problem)
         {
             MacDialogs.Show(problem, NSAlertStyle.Warning);

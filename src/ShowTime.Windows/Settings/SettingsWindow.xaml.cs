@@ -305,7 +305,8 @@ public partial class SettingsWindow : Window
             HotkeyVideoRegionBox.Text, HotkeyVideoFullScreenBox.Text, HotkeyVideoStartBox.Text, HotkeyVideoStopBox.Text,
             HighlightTriggerBox.Text, FfmpegBox.Text, (MicrophoneBox.SelectedItem as ComboBoxItem)?.Tag as string ?? _settings.Microphone,
             RecordMicrophoneBox.IsChecked == true, SystemAudioBox.IsChecked == true, (int)FrameRateBox.SelectedItem,
-            TranscribeBox.IsChecked == true, LanguageBox.SelectedValue as string ?? "fr", ModelBox.Text, _highlightStyle);
+            TranscribeBox.IsChecked == true, LanguageBox.SelectedValue as string ?? "fr", ModelBox.Text, _highlightStyle,
+            _settings.CheckForUpdates);
         if (_context.Editor.TryApply(form) is { } problem)
         {
             MessageBox.Show(this, problem, "ShowTime", MessageBoxButton.OK, MessageBoxImage.Warning);
