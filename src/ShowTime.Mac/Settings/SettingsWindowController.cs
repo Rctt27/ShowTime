@@ -61,6 +61,7 @@ internal sealed class SettingsWindowController : NSWindowController
     private readonly HotkeyField _highlightTrigger;
     private readonly NSTextField _highlightWarning = Help("Pendant l'enregistrement, cette touche n'écrira plus rien dans les applications.");
     private readonly NSButton _startup = NSButton.CreateCheckbox("Lancer ShowTime à l'ouverture de session", () => { });
+    private readonly NSButton _checkForUpdates = NSButton.CreateCheckbox("Rechercher automatiquement les mises à jour", () => { });
     private readonly NSButton _highlightStyleButton;
     private HighlightStyle _highlightStyle;
     private int _audioLoadGeneration;
@@ -115,6 +116,8 @@ internal sealed class SettingsWindowController : NSWindowController
         UpdateHighlightStyleButton();
         context.Recording.StateChanged += Recording_StateChanged;
         _startup.State = context.Startup.IsEnabled ? NSCellStateValue.On : NSCellStateValue.Off;
+        _checkForUpdates.State = context.Settings.CheckForUpdates ? NSCellStateValue.On : NSCellStateValue.Off;
+        _checkForUpdates.ToolTip = "Au démarrage, toutes les 6 heures et à l'ouverture du menu : ShowTime demande à GitHub s'il existe une version plus récente.";
 
         var window = Window!;
         var form = Build();
@@ -207,6 +210,7 @@ internal sealed class SettingsWindowController : NSWindowController
         rows.Add(Row("", Help("Cliquez dans un champ puis appuyez sur la combinaison. ⌫ : aucun raccourci. " +
             "Démarrer, Arrêter et Surligner ne sont actifs que pendant une vidéo ; Surligner se maintient au clavier.")));
         rows.Add(Row("", _startup));
+        rows.Add(Row("", _checkForUpdates));
         var buttons = NSStackView.FromViews([cancel, save]);
         buttons.Orientation = NSUserInterfaceLayoutOrientation.Horizontal;
         rows.Add(buttons);
@@ -443,7 +447,7 @@ internal sealed class SettingsWindowController : NSWindowController
             SettingsForm.FrameRates[(int)Math.Max(0, _frameRate.IndexOfSelectedItem)],
             _transcribe.State == NSCellStateValue.On,
             SettingsForm.TranscriptionLanguages[(int)Math.Max(0, _language.IndexOfSelectedItem)].Code, _model.StringValue,
-            _highlightStyle, _context.Settings.CheckForUpdates);
+            _highlightStyle, _checkForUpdates.State == NSCellStateValue.On);
         if (_context.Editor.TryApply(form) is { } problem)
         {
             MacDialogs.Show(problem, NSAlertStyle.Warning);

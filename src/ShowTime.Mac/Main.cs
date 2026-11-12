@@ -2,6 +2,7 @@ using AppKit;
 using Foundation;
 using Microsoft.Extensions.DependencyInjection;
 using ShowTime.Core.Ports;
+using ShowTime.Core.Updates;
 using ShowTime.Infrastructure.Diagnostics;
 
 namespace ShowTime.Mac;
@@ -25,15 +26,29 @@ internal static class Program
 
         // A second launch, from the Finder or at login, leaves the running one alone instead of adding an icon.
         // Compared by process, since an app started from a terminal is not listed until it has finished launching.
+        // Started by the update script, the old version may still be listed for a moment as it exits.
         var bundleId = NSBundle.MainBundle.BundleIdentifier;
-        if (bundleId is not null && NSRunningApplication.GetRunningApplications(bundleId)
-                .Any(other => other.ProcessIdentifier != Environment.ProcessId))
+        var patience = UpdateArguments.Parse(args).ConfirmFile is not null ? TimeSpan.FromSeconds(10) : TimeSpan.Zero;
+        if (bundleId is not null && AnotherIsRunning(bundleId, patience))
             return;
 
         app.ActivationPolicy = NSApplicationActivationPolicy.Accessory;
         app.MainMenu = MainMenu.Create();
         app.Delegate = new AppDelegate();
         app.Run();
+    }
+
+    private static bool AnotherIsRunning(string bundleId, TimeSpan patience)
+    {
+        var deadline = DateTime.UtcNow + patience;
+        while (true)
+        {
+            if (!NSRunningApplication.GetRunningApplications(bundleId).Any(other => other.ProcessIdentifier != Environment.ProcessId))
+                return false;
+            if (DateTime.UtcNow >= deadline)
+                return true;
+            Thread.Sleep(200);
+        }
     }
 
     private static async Task<int> RunDiagnosticsAsync()
