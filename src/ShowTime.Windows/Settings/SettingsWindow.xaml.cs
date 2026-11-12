@@ -73,6 +73,7 @@ public partial class SettingsWindow : Window
         Closed += (_, _) => _context.Recording.StateChanged -= Recording_StateChanged;
 
         StartupBox.IsChecked = _context.Startup.IsEnabled;
+        CheckForUpdatesBox.IsChecked = settings.CheckForUpdates;
         UpdateQualityState();
 
         FfmpegBox.Text = settings.FfmpegPath;
@@ -306,7 +307,7 @@ public partial class SettingsWindow : Window
             HighlightTriggerBox.Text, FfmpegBox.Text, (MicrophoneBox.SelectedItem as ComboBoxItem)?.Tag as string ?? _settings.Microphone,
             RecordMicrophoneBox.IsChecked == true, SystemAudioBox.IsChecked == true, (int)FrameRateBox.SelectedItem,
             TranscribeBox.IsChecked == true, LanguageBox.SelectedValue as string ?? "fr", ModelBox.Text, _highlightStyle,
-            _settings.CheckForUpdates);
+            CheckForUpdatesBox.IsChecked == true);
         if (_context.Editor.TryApply(form) is { } problem)
         {
             MessageBox.Show(this, problem, "ShowTime", MessageBoxButton.OK, MessageBoxImage.Warning);

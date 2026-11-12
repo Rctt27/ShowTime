@@ -13,4 +13,13 @@ public sealed class CompositionTests
         services.GetRequiredService<RecordingSession>().ShouldNotBeNull();
         services.GetRequiredService<Highlighter>().ShouldNotBeNull();
     });
+
+    [Fact]
+    public async Task The_updater_can_be_built_and_replaces_the_exes_folder() => await Sta.Run(() =>
+    {
+        using var services = App.ConfigureServices(System.Windows.Threading.Dispatcher.CurrentDispatcher).BuildServiceProvider();
+        services.GetRequiredService<ShowTime.Core.Updates.Updater>().ShouldNotBeNull();
+        services.GetRequiredService<ShowTime.Core.Ports.IUpdateInstaller>().Layout.AppPath
+            .ShouldBe(System.IO.Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory));
+    });
 }

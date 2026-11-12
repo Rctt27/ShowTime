@@ -2,6 +2,7 @@ using System;
 using System.IO;
 using System.IO.Abstractions;
 using System.Linq;
+using System.Net.Http;
 using System.Threading;
 using System.Threading.Tasks;
 using System.Windows;
@@ -15,12 +16,14 @@ using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
 using ShowTime.Core.Settings;
 using ShowTime.Core.Transcription;
+using ShowTime.Core.Updates;
 using ShowTime.Infrastructure.Diagnostics;
 using ShowTime.Infrastructure.Logging;
 using ShowTime.Infrastructure.Platform;
 using ShowTime.Infrastructure.Recording;
 using ShowTime.Infrastructure.Settings;
 using ShowTime.Infrastructure.Transcription;
+using ShowTime.Infrastructure.Updates;
 using ShowTime.Platform.Windows;
 
 namespace ShowTime;
@@ -44,7 +47,11 @@ public partial class App : Application
             return;
         }
 
+        var update = UpdateArguments.Parse(e.Args);
         _singleInstance = new Mutex(true, @"Local\ShowTime.SingleInstance", out var isFirst);
+        // Started by the update script: the old version may still be releasing the mutex as it exits.
+        if (!isFirst && update.ConfirmFile is not null)
+            isFirst = WaitForMutex(_singleInstance, TimeSpan.FromSeconds(10));
         if (!isFirst)
         {
             MessageBox.Show("ShowTime est déjà lancé (icône dans la zone de notification).", "ShowTime",
@@ -71,6 +78,25 @@ public partial class App : Application
         // Tracks of videos closed before their transcription: their players are gone with the previous run.
         _services.GetRequiredService<MicrophoneTracks>().DeleteLeftovers();
         _services.GetRequiredService<TrayController>();
+
+        // After the single-instance check and the tray: confirm a fresh update, or report one that failed, then clean up.
+        var updater = _services.GetRequiredService<Updater>();
+        UpdateStartup.Run(update, _services.GetRequiredService<IUpdateInstaller>().Layout, _services.GetRequiredService<IFileSystem>(),
+            _services.GetRequiredService<IUserDialogs>(), SemanticVersion.From(typeof(App).Assembly.GetName().Version!), log);
+        updater.Start();
+    }
+
+    private static bool WaitForMutex(Mutex mutex, TimeSpan timeout)
+    {
+        try
+        {
+            return mutex.WaitOne(timeout);
+        }
+        catch (AbandonedMutexException)
+        {
+            // The old version exited without releasing it: it is ours now.
+            return true;
+        }
     }
 
     /// <summary>"ShowTime.exe --diagnostics": the report, in the terminal it was started from and in the log folder.</summary>
@@ -155,6 +181,15 @@ public partial class App : Application
         services.AddSingleton<SettingsContext>();
         services.AddSingleton<Func<SettingsWindow>>(sp => () => new SettingsWindow(sp.GetRequiredService<SettingsContext>()));
         services.AddSingleton<TrayController>();
+
+        // Updates: GitHub's latest release, installed over the folder of ShowTime.exe.
+        var current = SemanticVersion.From(typeof(App).Assembly.GetName().Version!);
+        services.AddSingleton<IReleaseFeed>(new GitHubReleaseFeed(new SocketsHttpHandler(), current));
+        services.AddSingleton<IUpdateDownloader>(new HttpUpdateDownloader(new SocketsHttpHandler()));
+        services.AddSingleton<IUpdateInstaller>(sp => new WindowsUpdateInstaller(sp.GetRequiredService<IAppPaths>(),
+            sp.GetRequiredService<IFileSystem>(), Path.TrimEndingDirectorySeparator(AppContext.BaseDirectory)));
+        services.AddSingleton<IUpdateHost, WpfUpdateHost>();
+        services.AddSingleton(sp => ActivatorUtilities.CreateInstance<Updater>(sp, current));
         return services;
     }
 
