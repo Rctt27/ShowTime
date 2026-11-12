@@ -96,6 +96,18 @@ Avec le zip de la release, ou l'artefact `ShowTime-windows` de la CI (`build/pac
 - [ ] « Lancer ShowTime au démarrage de Windows » : présent après redémarrage, puis désactivé.
 - [ ] « Quitter » pendant un enregistrement pose la question ; avec un éditeur non enregistré aussi.
 
+### Mises à jour
+
+- [ ] Préparer : installer la release précédente depuis son zip, ou une build packagée avec une version plus basse (`-p:Version=0.0.1`). Juste après le lancement, l'info-bulle de l'icône dit « ShowTime — version X.Y.Z disponible » et le menu commence par « Installer la version X.Y.Z ».
+- [ ] Clic : « Téléchargement de la version X.Y.Z… NN % » progresse dans le menu, ShowTime reste utilisable ; un second clic ne fait rien ; puis ShowTime se ferme, la nouvelle version démarre seule, le dossier de l'ancienne (`.old`) et `.update-X.Y.Z` ont disparu, `update.log` dans le dossier du journal décrit chaque étape.
+- [ ] Réglages, raccourcis et le lancement au démarrage de Windows sont conservés ; une capture et une vidéo marchent dans la nouvelle version.
+- [ ] Pendant une vidéo : le clic affiche « Installation après l'enregistrement… » ; l'arrêt de la vidéo l'enregistre puis lance l'installation.
+- [ ] Un éditeur avec une capture non enregistrée : sa question s'affiche ; « Annuler » laisse ShowTime ouvert avec « Installer la version X.Y.Z (téléchargée) », et un nouveau clic installe sans retélécharger.
+- [ ] Hors ligne (Wi-Fi coupé) : le menu s'ouvre aussitôt, sans item de mise à jour ni message.
+- [ ] Réglages : décocher « Rechercher automatiquement les mises à jour » ; le menu montre « Rechercher une mise à jour », qui affiche « ShowTime est à jour (version …) » ou propose la version.
+- [ ] ShowTime extrait dans `C:\Program Files` (dossier non modifiable) : l'item ouvre la page de la version dans le navigateur, avec le message.
+- [ ] Nouvelle version qui ne démarre pas (une build qui quitte au lancement, publiée en release de test) : au bout d'une minute au plus, l'ancienne version revient seule avec « La version X.Y.Z n'a pas pu démarrer ; ShowTime est resté en version … ».
+
 ## macOS
 
 Avec `ShowTime-x.y.z-macos.zip` d'une release, ou l'artefact `ShowTime-macos` de la CI (onglet *Actions* du dépôt, dernier passage de la branche, section *Artifacts*). Les étapes suivent l'ordre de construction de l'app (`docs/superpowers/plans/2026-10-17-macos-native.md`) ; ensemble, elles forment la checklist macOS complète d'une release.
@@ -226,3 +238,16 @@ Avec l'artefact `ShowTime-macos` ou la release : le modèle est dans l'app, rien
 - [ ] Section « Sous-titres » : le statut du modèle dit « Livré avec ShowTime : … » quand le champ est vide, « Modèle introuvable… » en rouge pour un chemin faux ; la langue et la case « Transcrire le micro… » sont conservées après « Enregistrer » et relance, et la case est reprise par la bascule de la barre.
 - [ ] « Lancer ShowTime à l'ouverture de session » : ShowTime apparaît dans Réglages Système > Général > Ouverture, se lance après redémarrage, puis disparaît une fois la case décochée. (Si macOS refuse, le message s'affiche et le reste est enregistré.)
 - [ ] Après « Enregistrer », les nouveaux raccourcis marchent et s'affichent dans le menu ; les réglages sont conservés après relance.
+
+### Étape 8 : mises à jour
+
+- [ ] Préparer : installer la release précédente depuis son zip, ou une build packagée avec une version plus basse (`-p:Version=0.0.1`). Juste après le lancement, l'info-bulle de l'icône dit « ShowTime — version X.Y.Z disponible » et le menu commence par « Installer la version X.Y.Z ».
+- [ ] Clic : « Téléchargement de la version X.Y.Z… NN % » progresse dans le menu, ShowTime reste utilisable ; un second clic ne fait rien ; puis ShowTime se ferme, la nouvelle version démarre seule, le dossier de l'ancienne (`.ShowTime-old.app`) et `.ShowTime-update-X.Y.Z` ont disparu, `update.log` dans le dossier du journal décrit chaque étape.
+- [ ] Réglages, raccourcis et l'ouverture de session sont conservés ; une capture et une vidéo marchent dans la nouvelle version.
+- [ ] Pendant une vidéo : le clic affiche « Installation après l'enregistrement… » ; l'arrêt de la vidéo l'enregistre puis lance l'installation.
+- [ ] Un éditeur avec une capture non enregistrée : sa question s'affiche ; « Annuler » laisse ShowTime ouvert avec « Installer la version X.Y.Z (téléchargée) », et un nouveau clic installe sans retélécharger.
+- [ ] Hors ligne (Wi-Fi coupé) : le menu s'ouvre aussitôt, sans item de mise à jour ni message.
+- [ ] Réglages : décocher « Rechercher automatiquement les mises à jour » ; le menu montre « Rechercher une mise à jour », qui affiche « ShowTime est à jour (version …) » ou propose la version.
+- [ ] ShowTime lancé depuis l'image disque ou un dossier en lecture seule : l'item ouvre la page de la version dans le navigateur, avec le message.
+- [ ] Nouvelle version qui ne démarre pas (une build qui quitte au lancement, publiée en release de test) : au bout d'une minute au plus, l'ancienne version revient seule avec « La version X.Y.Z n'a pas pu démarrer ; ShowTime est resté en version … ».
+- [ ] Après la mise à jour, une capture et une vidéo avec le micro ne redemandent ni l'autorisation Enregistrement de l'écran ni le Micro (même certificat `LocalTake`).

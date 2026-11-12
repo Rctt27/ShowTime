@@ -1,6 +1,6 @@
 # ShowTime
 
-Outil de capture d'écran et d'enregistrement vidéo pour **Windows** et **macOS**, sans compte ni cloud : les captures restent sur l'ordinateur. ShowTime n'envoie rien nulle part, pas même des statistiques ; son journal est un fichier local.
+Outil de capture d'écran et d'enregistrement vidéo pour **Windows** et **macOS**, sans compte ni cloud : les captures, les vidéos et les sous-titres restent sur l'ordinateur. ShowTime ne se connecte à Internet que pour chercher et télécharger ses mises à jour (voir [Réseau](#réseau)) ; aucune statistique n'est envoyée, et son journal est un fichier local.
 
 ## Installation
 
@@ -13,6 +13,18 @@ Les versions se téléchargent depuis la page [Releases](https://github.com/Rctt
 - **Micro**, à la première vidéo avec le micro.
 
 À partir de la version 0.5.0, les mises à jour gardent ces autorisations : l'app est toujours signée avec le même certificat (`docs/macos-signing.md`).
+
+### Mises à jour
+
+Quand une version plus récente est publiée, le menu de l'icône propose « Installer la version X.Y.Z » (l'info-bulle de l'icône l'indique aussi). Un clic la télécharge (la progression s'affiche dans le menu ; ShowTime reste utilisable), vérifie le fichier, puis ferme ShowTime, remplace l'app là où elle se trouve, la relance et supprime l'ancienne version. Les réglages, le lancement au démarrage et, sur Mac, les autorisations sont conservés.
+
+- Une vidéo en cours : l'installation attend qu'elle soit finie (« Installation après l'enregistrement… »).
+- Une capture non enregistrée : l'éditeur pose sa question habituelle ; « Annuler » met l'installation en pause, et un nouveau clic la reprend sans retélécharger.
+- Une transcription en cours : elle est interrompue, comme lorsqu'on quitte ShowTime ; la vidéo est conservée, et « Générer les sous-titres » dans le lecteur la relance.
+- Si la nouvelle version ne démarre pas dans la minute, l'ancienne est remise en place et un message l'explique.
+- Si ShowTime ne peut pas écrire dans son dossier (Program Files, `/Applications` protégé, image disque), le menu ouvre la page de la version dans le navigateur, pour une mise à jour à la main.
+
+La recherche automatique se désactive dans les réglages (« Rechercher automatiquement les mises à jour ») ; le menu propose alors « Rechercher une mise à jour ».
 
 ## Raccourcis par défaut
 
@@ -76,6 +88,17 @@ ffmpeg, qui encode les vidéos, est livré avec ShowTime (version épinglée ; S
 | Journal (7 jours) | `%LOCALAPPDATA%\ShowTime\logs` | `~/Library/Logs/ShowTime` |
 
 ShowTime s'appelait LocalTake jusqu'à la version 0.4 et ne reprend pas ses réglages. Les dossiers `LocalTake` aux mêmes endroits peuvent être supprimés ; décochez « Lancer LocalTake au démarrage » dans ses réglages avant de le désinstaller.
+
+## Réseau
+
+ShowTime est « local first » : tout ce qu'il produit reste sur l'ordinateur. Voici la liste complète de ses connexions à Internet :
+
+| Quoi | Vers | Quand | Ce qui part |
+| --- | --- | --- | --- |
+| Recherche d'une mise à jour | `api.github.com` (dernière version de ce dépôt) | 5 s après le démarrage, puis toutes les 6 heures, et à l'ouverture du menu si la dernière réponse date de plus de 15 minutes ; ou au clic sur « Rechercher une mise à jour » | une requête HTTPS avec l'en-tête `User-Agent: ShowTime/X.Y.Z` ; GitHub voit l'adresse IP |
+| Téléchargement d'une mise à jour | `github.com` et `objects.githubusercontent.com` | au clic sur « Installer la version X.Y.Z » | une requête HTTPS pour le zip de la version |
+
+Ne part jamais : les captures, les vidéos, les sous-titres, les réglages, le journal, ni aucune statistique. ffmpeg et le modèle de transcription sont fournis avec ShowTime, jamais téléchargés à part. Décocher « Rechercher automatiquement les mises à jour » dans les réglages supprime la recherche automatique : ShowTime ne se connecte plus que si vous cliquez sur « Rechercher une mise à jour ».
 
 ## Un problème ?
 
