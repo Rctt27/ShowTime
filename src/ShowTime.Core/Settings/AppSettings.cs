@@ -83,6 +83,9 @@ public sealed class AppSettings
     /// <summary>The recording bar's third toggle: the microphone is transcribed into subtitles after the recording.</summary>
     public bool TranscribeMicrophone { get; set; }
 
+    /// <summary>Whether ShowTime looks for a newer version by itself (at startup, every 6 hours, on opening the menu).</summary>
+    public bool CheckForUpdates { get; set; } = true;
+
     /// <summary>A Whisper language code such as "fr", or "auto" to detect it.</summary>
     public string TranscriptionLanguage { get; set; } = "fr";
 

@@ -28,6 +28,7 @@ public sealed class SettingsEditorTests
         _settings.TranscribeMicrophone = true;
         _settings.TranscriptionLanguage = "auto";
         _settings.HighlightTrigger = "XButton2";
+        _settings.CheckForUpdates = false;
         var copy = new AppSettings(SettingsDefaults.ForMacOS("/x"));
 
         SettingsForm.From(_settings).ApplyTo(copy);
@@ -39,7 +40,15 @@ public sealed class SettingsEditorTests
         copy.TranscribeMicrophone.ShouldBeTrue();
         copy.TranscriptionLanguage.ShouldBe("auto");
         copy.HighlightTrigger.ShouldBe("XButton2");
+        copy.CheckForUpdates.ShouldBeFalse();
         copy.OutputFolder.ShouldBe(Folder);
+    }
+
+    [Fact]
+    public void Updates_are_checked_by_default()
+    {
+        new AppSettings(SettingsDefaults.ForWindows("x")).CheckForUpdates.ShouldBeTrue();
+        new AppSettings(SettingsDefaults.ForMacOS("x")).CheckForUpdates.ShouldBeTrue();
     }
 
     [Fact]

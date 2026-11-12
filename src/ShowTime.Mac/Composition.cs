@@ -9,12 +9,14 @@ using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
 using ShowTime.Core.Settings;
 using ShowTime.Core.Transcription;
+using ShowTime.Core.Updates;
 using ShowTime.Infrastructure.Diagnostics;
 using ShowTime.Infrastructure.Logging;
 using ShowTime.Infrastructure.Platform;
 using ShowTime.Infrastructure.Recording;
 using ShowTime.Infrastructure.Settings;
 using ShowTime.Infrastructure.Transcription;
+using ShowTime.Infrastructure.Updates;
 using ShowTime.Mac.Adapters;
 using ShowTime.Mac.Capture;
 using ShowTime.Mac.Editor;
@@ -105,6 +107,14 @@ internal static class Composition
         services.AddSingleton<SettingsContext>();
         services.AddSingleton<Func<SettingsWindowController>>(sp => () => new SettingsWindowController(sp.GetRequiredService<SettingsContext>()));
         services.AddSingleton<StatusMenu>();
+
+        // Updates: GitHub's latest release, installed over ShowTime.app where it is.
+        var current = SemanticVersion.From(typeof(Composition).Assembly.GetName().Version!);
+        services.AddSingleton<IReleaseFeed>(new GitHubReleaseFeed(new SocketsHttpHandler(), current));
+        services.AddSingleton<IUpdateDownloader>(new HttpUpdateDownloader(new SocketsHttpHandler()));
+        services.AddSingleton<IUpdateInstaller, MacUpdateInstaller>();
+        services.AddSingleton<IUpdateHost, MacUpdateHost>();
+        services.AddSingleton(sp => ActivatorUtilities.CreateInstance<Updater>(sp, current));
 
         return services.BuildServiceProvider(new ServiceProviderOptions { ValidateOnBuild = true });
     }

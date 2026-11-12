@@ -6,6 +6,7 @@ using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
 using ShowTime.Core.Settings;
 using ShowTime.Core.Transcription;
+using ShowTime.Core.Updates;
 
 namespace ShowTime.Core.Tests;
 
@@ -329,6 +330,137 @@ internal sealed class FakeHighlightOverlay : IHighlightOverlay
 
     public void Hide() => Visible = false;
     public void Dispose() => Disposed = true;
+}
+
+internal static class UpdateFixtures
+{
+    /// <summary>GitHub's answer for the v0.6.3 release, trimmed to what ShowTime reads.</summary>
+    public static string Release063 =>
+        File.ReadAllText(Path.Combine(AppContext.BaseDirectory, "Updates", "release-v0.6.3.json"));
+}
+
+/// <summary>Answers with <see cref="Json"/>, fails with <see cref="Failure"/>, or waits on <see cref="Pending"/>.</summary>
+internal sealed class FakeReleaseFeed : IReleaseFeed
+{
+    public int Calls { get; private set; }
+    public string Json { get; set; } = UpdateFixtures.Release063;
+    public Exception? Failure { get; set; }
+
+    /// <summary>When set, each call waits until the test completes it.</summary>
+    public TaskCompletionSource<string>? Pending { get; set; }
+
+    public Task<string> GetLatestAsync(CancellationToken cancellationToken)
+    {
+        Calls++;
+        if (Pending is not null)
+            return Pending.Task;
+        return Failure is not null ? Task.FromException<string>(Failure) : Task.FromResult(Json);
+    }
+}
+
+/// <summary>Writes <see cref="Content"/> to the destination after reporting <see cref="Progress"/>, or fails as told.</summary>
+internal sealed class FakeUpdateDownloader(System.IO.Abstractions.IFileSystem fileSystem) : IUpdateDownloader
+{
+    public List<(Uri Url, string Destination)> Calls { get; } = [];
+    public byte[] Content { get; set; } = [];
+    public IReadOnlyList<double> Progress { get; set; } = [];
+    public Exception? Failure { get; set; }
+
+    /// <summary>When set, each download waits until the test completes it.</summary>
+    public TaskCompletionSource? Pending { get; set; }
+
+    /// <summary>When set, notes "Download" there, to check the order of the calls across the fakes.</summary>
+    public List<string>? Journal { get; set; }
+
+    public async Task DownloadAsync(Uri url, string destinationFile, IProgress<double> progress, CancellationToken cancellationToken)
+    {
+        Calls.Add((url, destinationFile));
+        Journal?.Add("Download");
+        foreach (var value in Progress)
+            progress.Report(value);
+        if (Pending is not null)
+        {
+            // Inline: the rest runs on the thread that completes or cancels it, before the test's next line.
+            await Pending.Task.WaitAsync(cancellationToken).ConfigureAwait(false);
+        }
+
+        if (Failure is not null)
+            throw Failure;
+        fileSystem.File.WriteAllBytes(destinationFile, Content);
+    }
+}
+
+internal sealed class FakeUpdateInstaller : IUpdateInstaller
+{
+    public UpdatePlatform Platform { get; set; } = UpdatePlatform.WindowsX64;
+    public UpdateLayout Layout { get; set; } = new(UpdatePlatform.WindowsX64, @"C:\ShowTime");
+    public bool CanReplace { get; set; } = true;
+    public Exception? StageFailure { get; set; }
+    public Exception? ReplacementFailure { get; set; }
+    public List<(string Zip, string Staging)> Staged { get; } = [];
+    public List<ReplacementPlan> Replacements { get; } = [];
+
+    /// <summary>When set, notes "Stage" and "StartReplacement" there.</summary>
+    public List<string>? Journal { get; set; }
+
+    /// <summary>When set, the "script" writes its started file there at once, unless <see cref="StartsScript"/> is false.</summary>
+    public System.IO.Abstractions.IFileSystem? FileSystem { get; set; }
+
+    public bool StartsScript { get; set; } = true;
+
+    public bool CanReplaceApp() => CanReplace;
+
+    public Task<string> StageAsync(string zipFile, string stagingFolder, CancellationToken cancellationToken)
+    {
+        Staged.Add((zipFile, stagingFolder));
+        Journal?.Add("Stage");
+        return StageFailure is not null
+            ? Task.FromException<string>(StageFailure)
+            : Task.FromResult(Path.Combine(stagingFolder, "ShowTime"));
+    }
+
+    public void StartReplacement(ReplacementPlan plan)
+    {
+        Journal?.Add("StartReplacement");
+        if (ReplacementFailure is not null)
+            throw ReplacementFailure;
+        Replacements.Add(plan);
+        if (FileSystem is not null && StartsScript)
+        {
+            FileSystem.Directory.CreateDirectory(Path.GetDirectoryName(plan.StartedFile)!);
+            FileSystem.File.WriteAllText(plan.StartedFile, "started");
+        }
+    }
+}
+
+internal sealed class FakeUpdateHost : IUpdateHost
+{
+    public bool CloseWindows { get; set; } = true;
+    public int CloseRequests { get; private set; }
+    public int Quits { get; private set; }
+    public List<Uri> Opened { get; } = [];
+
+    /// <summary>When set, notes "TryCloseWindows" and "Quit" there.</summary>
+    public List<string>? Journal { get; set; }
+
+    /// <summary>Runs while the windows are being closed, as the user could while an editor asks about unsaved work.</summary>
+    public Action? Closing { get; set; }
+
+    public bool TryCloseWindows()
+    {
+        CloseRequests++;
+        Journal?.Add("TryCloseWindows");
+        Closing?.Invoke();
+        return CloseWindows;
+    }
+
+    public void Quit()
+    {
+        Quits++;
+        Journal?.Add("Quit");
+    }
+
+    public void OpenInBrowser(Uri url) => Opened.Add(url);
 }
 
 internal sealed class FakeHighlightOverlayFactory : IHighlightOverlayFactory

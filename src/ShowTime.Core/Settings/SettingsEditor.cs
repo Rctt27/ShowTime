@@ -27,7 +27,8 @@ public sealed record SettingsForm(
     bool TranscribeMicrophone,
     string TranscriptionLanguage,
     string TranscriptionModelPath,
-    HighlightStyle HighlightStyle)
+    HighlightStyle HighlightStyle,
+    bool CheckForUpdates)
 {
     /// <summary>The frame rates offered.</summary>
     public static IReadOnlyList<int> FrameRates { get; } = [15, 24, 30, 60];
@@ -54,7 +55,8 @@ public sealed record SettingsForm(
             settings.TranscribeMicrophone,
             TranscriptionLanguages.Any(l => l.Code == settings.TranscriptionLanguage) ? settings.TranscriptionLanguage : "fr",
             settings.TranscriptionModelPath,
-            settings.HighlightStyle);
+            settings.HighlightStyle,
+            settings.CheckForUpdates);
     }
 
     /// <summary>Copies the fields, trimmed, into the settings.</summary>
@@ -85,6 +87,7 @@ public sealed record SettingsForm(
         settings.TranscriptionLanguage = TranscriptionLanguage;
         settings.TranscriptionModelPath = TranscriptionModelPath.Trim();
         settings.HighlightStyle = HighlightStyle.Clamped();
+        settings.CheckForUpdates = CheckForUpdates;
     }
 }
 

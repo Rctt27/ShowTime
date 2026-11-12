@@ -12,6 +12,7 @@ using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
 using ShowTime.Core.Settings;
 using ShowTime.Core.Transcription;
+using ShowTime.Core.Updates;
 using Forms = System.Windows.Forms;
 
 namespace ShowTime;
@@ -31,6 +32,7 @@ internal sealed class TrayController : IDisposable
     private readonly IFileTrash _trash;
     private readonly Transcriptions _transcriptions;
     private readonly SubtitleFile _subtitles;
+    private readonly Updater _updater;
 
     private readonly Forms.ToolStripMenuItem _regionItem;
     private readonly Forms.ToolStripMenuItem _windowItem;
@@ -39,14 +41,17 @@ internal sealed class TrayController : IDisposable
     private readonly Forms.ToolStripMenuItem _videoRegionItem;
     private readonly Forms.ToolStripMenuItem _videoFullScreenItem;
     private readonly Forms.ToolStripMenuItem _stopVideoItem;
+    private readonly Forms.ToolStripMenuItem _updateItem;
+    private readonly Forms.ToolStripSeparator _updateSeparator = new();
 
     private SettingsWindow? _settingsWindow;
 
     public TrayController(
         AppSettings settings, CaptureWorkflow captures, RecordingSession video, IGlobalHotkeys hotkeys, TrayIcon tray,
         IEditorLauncher editor, IUserDialogs dialogs, Func<SettingsWindow> createSettingsWindow, IShell shell, IFileTrash trash,
-        Transcriptions transcriptions, SubtitleFile subtitles)
+        Transcriptions transcriptions, SubtitleFile subtitles, Updater updater)
     {
+        _updater = updater;
         _transcriptions = transcriptions;
         _subtitles = subtitles;
         _shell = shell;
@@ -61,6 +66,12 @@ internal sealed class TrayController : IDisposable
         _createSettingsWindow = createSettingsWindow;
 
         var menu = tray.Menu;
+        // First, and only when there is something to say: a newer version, or the manual check when automatic is off.
+        _updateItem = AddItem(menu, "", UpdateItem_Click);
+        menu.Items.Add(_updateSeparator);
+        menu.Opening += (_, _) => _updater.MenuOpening();
+        _updater.Changed += (_, _) => UpdateUpdateItem();
+        UpdateUpdateItem();
         _regionItem = AddItem(menu, "Capturer une zone", () => _ = _captures.CaptureAreaAsync(windowMode: false, fromMenu: true));
         _windowItem = AddItem(menu, "Capturer une fenêtre", () => _ = _captures.CaptureAreaAsync(windowMode: true, fromMenu: true));
         _fullScreenItem = AddItem(menu, "Capturer tout l'écran", () => _ = _captures.CaptureFullScreenAsync(fromMenu: true));
@@ -179,7 +190,29 @@ internal sealed class TrayController : IDisposable
         _stopVideoItem.Visible = _video.IsReady || _video.IsRecording;
         _stopVideoItem.Text = _video.IsReady ? "Démarrer l'enregistrement" : "Arrêter l'enregistrement";
         _videoRegionItem.Enabled = _videoFullScreenItem.Enabled = !_video.IsBusy;
-        _tray.Text = _video.IsRecording ? "ShowTime — enregistrement en cours" : "ShowTime";
+        UpdateTrayText();
+    }
+
+    // ---- Updates ----------------------------------------------------------------------------------------
+
+    private void UpdateUpdateItem()
+    {
+        var entry = UpdateMenuEntry.For(_updater.State, _settings.CheckForUpdates);
+        _updateItem.Text = entry.Text;
+        _updateItem.Enabled = entry.Enabled;
+        _updateItem.Visible = _updateSeparator.Visible = entry.Visible;
+        UpdateTrayText();
+    }
+
+    private void UpdateTrayText() =>
+        _tray.Text = _video.IsRecording ? "ShowTime — enregistrement en cours" : UpdateMenuEntry.ToolTip(_updater.State) ?? "ShowTime";
+
+    private void UpdateItem_Click()
+    {
+        if (_updater.State.Stage is UpdateStage.Available or UpdateStage.Downloaded)
+            _ = _updater.InstallAsync();
+        else
+            _ = _updater.CheckNowAsync();
     }
 
     // ---- Other menu entries ---------------------------------------------------------------------------------
@@ -292,6 +325,8 @@ internal sealed class TrayController : IDisposable
         _settingsWindow.Closed += (_, _) =>
         {
             _settingsWindow = null;
+            // The automatic check may have been turned on or off.
+            UpdateUpdateItem();
             var failures = RegisterHotkeys();
             if (failures.Count > 0)
                 ReportHotkeyFailures(failures);

@@ -1,10 +1,13 @@
+using System.IO.Abstractions;
 using AppKit;
 using CoreFoundation;
 using Foundation;
 using Microsoft.Extensions.DependencyInjection;
 using Microsoft.Extensions.Logging;
 using ShowTime.Core.Diagnostics;
+using ShowTime.Core.Ports;
 using ShowTime.Core.Transcription;
+using ShowTime.Core.Updates;
 
 namespace ShowTime.Mac;
 
@@ -26,8 +29,15 @@ internal sealed class AppDelegate : NSApplicationDelegate
 
         // The microphone tracks of a previous run, closed before they were transcribed.
         _services.GetRequiredService<MicrophoneTracks>().DeleteLeftovers();
+
+        // Before the menu: building it may show a modal warning (a shortcut macOS refused), which would keep a fresh
+        // update from confirming its start in time, and the script would put the old version back.
+        var arguments = UpdateArguments.Parse(NSProcessInfo.ProcessInfo.Arguments.Skip(1).ToList());
+        UpdateStartup.Run(arguments, _services.GetRequiredService<IUpdateInstaller>().Layout, _services.GetRequiredService<IFileSystem>(),
+            _services.GetRequiredService<IUserDialogs>(), SemanticVersion.From(typeof(AppDelegate).Assembly.GetName().Version!), log);
         _services.GetRequiredService<StatusMenu>();
         _services.GetRequiredService<HangWatchdog>().Start();
+        _services.GetRequiredService<Updater>().Start();
 
         // "open -a ShowTime --args --test-hang": 15 s after launch, time enough to open ShowTime's menu or start a
         // recording, the main thread freezes for a minute, to check the watchdog by hand.

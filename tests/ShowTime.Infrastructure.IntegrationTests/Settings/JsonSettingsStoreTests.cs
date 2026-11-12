@@ -76,6 +76,7 @@ public sealed class JsonSettingsStoreTests : IDisposable
         s.TranscriptionLanguage.ShouldBe("fr");
         s.TranscriptionModelPath.ShouldBe("");
         s.HighlightTrigger.ShouldBe("Ctrl+Space");
+        s.CheckForUpdates.ShouldBeTrue();
     }
 
     [Fact]
@@ -88,8 +89,9 @@ public sealed class JsonSettingsStoreTests : IDisposable
         // Deliberate change: the transcription's three settings are new keys, which v0.1.0 files simply lack.
         // Deliberate change: the highlight trigger is a new key, which older files simply lack.
         // Deliberate change: the highlight style is a new key, which older files simply lack.
+        // Deliberate change: the update check is a new key, which older files simply lack.
         written.ShouldBe([.. legacy, "SchemaVersion", "TranscribeMicrophone", "TranscriptionLanguage", "TranscriptionModelPath", "HighlightTrigger",
-            "HighlightStyle"], ignoreOrder: true);
+            "HighlightStyle", "CheckForUpdates"], ignoreOrder: true);
     }
 
     [Fact]

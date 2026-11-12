@@ -5,6 +5,10 @@
   </ItemGroup>
 
   <ItemGroup>
+    <None Include="Updates/release-v0.6.3.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+  <ItemGroup>
     <PackageReference Include="NSubstitute" />
     <PackageReference Include="Microsoft.Extensions.TimeProvider.Testing" />
     <PackageReference Include="TestableIO.System.IO.Abstractions.TestingHelpers" />

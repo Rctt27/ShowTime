@@ -8,6 +8,7 @@ using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
 using ShowTime.Core.Settings;
 using ShowTime.Core.Transcription;
+using ShowTime.Core.Updates;
 using ShowTime.Mac.Adapters;
 using ShowTime.Mac.Editor;
 using ShowTime.Mac.Platform;
@@ -34,6 +35,8 @@ internal sealed class StatusMenu : IDisposable
     private readonly IFileTrash _trash;
     private readonly SubtitleFile _subtitles;
     private readonly Transcriptions _transcriptions;
+    private readonly Updater _updater;
+    private readonly MenuOpening _menuOpening;
     private readonly List<VideoPreviewWindowController> _previews = [];
     private readonly Func<SettingsWindowController> _createSettingsWindow;
     private readonly ILogger<StatusMenu> _log;
@@ -48,12 +51,15 @@ internal sealed class StatusMenu : IDisposable
     private readonly NSMenuItem _videoRegionItem;
     private readonly NSMenuItem _videoFullScreenItem;
     private readonly NSMenuItem _stopVideoItem;
+    private readonly NSMenuItem _updateItem;
+    private readonly NSMenuItem _updateSeparator = NSMenuItem.SeparatorItem;
 
     public StatusMenu(AppSettings settings, CaptureWorkflow captures, IGlobalHotkeys hotkeys, IUserDialogs dialogs, IShell shell,
         MacEditorLauncher editor, INotifications notifications, RecordingSession video, IFileTrash trash,
         SubtitleFile subtitles, Transcriptions transcriptions, Func<SettingsWindowController> createSettingsWindow,
-        ILogger<StatusMenu> log)
+        ILogger<StatusMenu> log, Updater updater)
     {
+        _updater = updater;
         _settings = settings;
         _captures = captures;
         _hotkeys = hotkeys;
@@ -70,7 +76,12 @@ internal sealed class StatusMenu : IDisposable
 
         var menu = new NSMenu { AutoEnablesItems = false };
         menu.AddItem(new NSMenuItem("ShowTime " + Version) { Enabled = false });
+        // Under the version, and only when there is something to say: a newer version, or the manual check.
+        _updateItem = AddItem(menu, "", UpdateItem_Click);
+        menu.AddItem(_updateSeparator);
         menu.AddItem(NSMenuItem.SeparatorItem);
+        _menuOpening = new MenuOpening(_updater.MenuOpening);
+        menu.Delegate = _menuOpening;
         _regionItem = AddItem(menu, "Capturer une zone", () => _ = _captures.CaptureAreaAsync(windowMode: false, fromMenu: true));
         _windowItem = AddItem(menu, "Capturer une fenêtre", () => _ = _captures.CaptureAreaAsync(windowMode: true, fromMenu: true));
         _fullScreenItem = AddItem(menu, "Capturer tout l'écran", () => _ = _captures.CaptureFullScreenAsync(fromMenu: true));
@@ -103,6 +114,8 @@ internal sealed class StatusMenu : IDisposable
         _statusItem.Menu = menu;
 
         _video.StateChanged += (_, _) => UpdateVideoState();
+        _updater.Changed += (_, _) => UpdateUpdateItem();
+        UpdateUpdateItem();
         _video.VideoSaved += (_, e) => OpenVideoPreview(e.Path, e.FullScreen, e.MicrophoneTrackPath, e.Transcribe);
 
         var failures = RegisterHotkeys();
@@ -239,8 +252,42 @@ internal sealed class StatusMenu : IDisposable
         _stopVideoItem.Hidden = !(_video.IsReady || _video.IsRecording);
         _stopVideoItem.Title = _video.IsReady ? "Démarrer l'enregistrement" : "Arrêter l'enregistrement";
         _videoRegionItem.Enabled = _videoFullScreenItem.Enabled = !_video.IsBusy;
+        UpdateToolTip();
+    }
+
+    // ---- Updates --------------------------------------------------------------------------------------------
+
+    private void UpdateUpdateItem()
+    {
+        var entry = UpdateMenuEntry.For(_updater.State, _settings.CheckForUpdates);
+        _updateItem.Title = entry.Text;
+        _updateItem.Enabled = entry.Enabled;
+        _updateItem.Hidden = _updateSeparator.Hidden = !entry.Visible;
+        UpdateToolTip();
+    }
+
+    private void UpdateToolTip()
+    {
         if (_statusItem.Button is { } button)
-            button.ToolTip = _video.IsRecording ? "ShowTime — enregistrement en cours" : "ShowTime";
+            button.ToolTip = _video.IsRecording ? "ShowTime — enregistrement en cours" : UpdateMenuEntry.ToolTip(_updater.State) ?? "ShowTime";
+    }
+
+    private void UpdateItem_Click()
+    {
+        if (_updater.State.Stage is UpdateStage.Available or UpdateStage.Downloaded)
+            _ = _updater.InstallAsync();
+        else
+            _ = _updater.CheckNowAsync();
+    }
+
+    /// <summary>Tells the updater when the menu opens, so that it checks if its last answer is old.</summary>
+    private sealed class MenuOpening(Action opening) : NSMenuDelegate
+    {
+        public override void MenuWillOpen(NSMenu menu) => opening();
+
+        public override void MenuWillHighlightItem(NSMenu menu, NSMenuItem item)
+        {
+        }
     }
 
     // ---- Quitting -------------------------------------------------------------------------------------------
@@ -251,6 +298,9 @@ internal sealed class StatusMenu : IDisposable
     /// </summary>
     public NSApplicationTerminateReply ShouldTerminate()
     {
+        // An update: the recording has ended and the editors were asked already; the script waits for this process.
+        if (MacUpdateHost.QuitApproved)
+            return NSApplicationTerminateReply.Now;
         // Nothing to wait for: the answer is given now.
         if (!_video.IsBusy)
             return _editor.CloseAll() ? NSApplicationTerminateReply.Now : NSApplicationTerminateReply.Cancel;
@@ -328,6 +378,8 @@ internal sealed class StatusMenu : IDisposable
         window.Closed += (_, _) =>
         {
             _settingsWindow = null;
+            // The automatic check may have been turned on or off.
+            UpdateUpdateItem();
             // Released once AppKit has finished closing the window.
             CoreFoundation.DispatchQueue.MainQueue.DispatchAsync(window.Dispose);
             var failures = RegisterHotkeys();
