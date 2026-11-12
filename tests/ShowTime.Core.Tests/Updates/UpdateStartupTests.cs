@@ -112,6 +112,20 @@ public sealed class UpdateStartupTests
     }
 
     [Fact]
+    public void A_marker_whose_backup_is_gone_is_deleted_and_leftovers_are_cleaned()
+    {
+        // The user moved or deleted the backup, as the warning asked: nothing is left to protect.
+        var elsewhere = Path.Combine(Path.GetTempPath(), "MovedAway");
+        _fs.AddFile(_layout.RestoreFailedMarker, new MockFileData(elsewhere));
+
+        Run();
+
+        _dialogs.ReceivedCalls().ShouldBeEmpty();
+        _fs.File.Exists(_layout.RestoreFailedMarker).ShouldBeFalse();
+        _fs.Directory.Exists(_staging).ShouldBeFalse();
+    }
+
+    [Fact]
     public void The_marker_is_not_a_leftover()
     {
         _fs.AddFile(_layout.RestoreFailedMarker, new MockFileData(_layout.BackupPath));

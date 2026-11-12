@@ -236,6 +236,7 @@ public sealed class UpdaterInstallTests : IDisposable
     {
         // The script wrote the backup's path in the marker: installing again would delete the only old copy.
         var backup = _installer.Layout.BackupPath;
+        _fs.AddDirectory(backup);
         _fs.AddFile(_installer.Layout.RestoreFailedMarker, new MockFileData(backup + Environment.NewLine));
         var updater = await Offering();
         var before = updater.State;
@@ -247,6 +248,75 @@ public sealed class UpdaterInstallTests : IDisposable
         _downloader.Calls.ShouldBeEmpty();
         _host.Opened.ShouldBeEmpty();
         updater.State.ShouldBe(before);
+    }
+
+    [Fact]
+    public async Task A_marker_whose_backup_is_gone_no_longer_blocks_an_update()
+    {
+        // The user moved or deleted the backup, as the warning asked: the marker protects nothing any more.
+        _fs.AddFile(_installer.Layout.RestoreFailedMarker, new MockFileData(_installer.Layout.BackupPath));
+        var updater = await Offering();
+
+        await updater.InstallAsync();
+
+        _dialogs.DidNotReceive().ShowWarning(Arg.Any<string>());
+        _fs.File.Exists(_installer.Layout.RestoreFailedMarker).ShouldBeFalse();
+        _installer.Replacements.Count.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Progress_changes_the_state_only_when_the_percent_shown_changes()
+    {
+        _downloader.Progress = [0.001, 0.002, 0.009, 0.01, 0.015, 0.02];
+        _downloader.Pending = new TaskCompletionSource();
+        var updater = await Offering();
+        var shown = new List<double>();
+        updater.Changed += (_, _) =>
+        {
+            if (updater.State.Stage == UpdateStage.Downloading)
+                shown.Add(updater.State.Progress);
+        };
+
+        var install = updater.InstallAsync();
+
+        shown.ShouldBe([0, 0.01, 0.02]);
+        _downloader.Pending.SetResult();
+        await install;
+    }
+
+    [Fact]
+    public async Task A_recording_started_during_the_save_question_puts_the_install_off()
+    {
+        // The editor's question pumps messages: a shortcut can start a recording before it returns.
+        var updater = await Offering();
+        _host.Closing = () =>
+        {
+            _host.Closing = null;
+            _recording.Set(true);
+        };
+
+        await updater.InstallAsync();
+
+        _installer.Replacements.ShouldBeEmpty();
+        _host.Quits.ShouldBe(0);
+        updater.State.Stage.ShouldBe(UpdateStage.WaitingForRecording);
+
+        _recording.Set(false);
+
+        _installer.Replacements.Count.ShouldBe(1);
+        _host.Quits.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Quitting_during_the_save_question_starts_no_replacement()
+    {
+        var updater = await Offering();
+        _host.Closing = updater.Dispose;
+
+        await updater.InstallAsync();
+
+        _installer.Replacements.ShouldBeEmpty();
+        _host.Quits.ShouldBe(0);
     }
 
     [Fact]

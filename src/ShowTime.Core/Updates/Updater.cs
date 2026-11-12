@@ -94,10 +94,9 @@ public sealed class Updater(
             return;
 
         var layout = installer.Layout;
-        if (fileSystem.File.Exists(layout.RestoreFailedMarker))
+        if (UpdateStartup.KeptBackup(layout, fileSystem, log) is { } backup)
         {
             // The backup may be the only copy of the old version left: a new update would replace it.
-            var backup = UpdateStartup.ReadBackupPath(layout, fileSystem);
             if (log.IsEnabled(LogLevel.Warning))
                 log.LogWarning("Update to {Version} refused: an earlier one could not be undone, see {Backup}", release.Version, backup);
             dialogs.ShowWarning(
@@ -278,7 +277,9 @@ public sealed class Updater(
 
     private void ShowProgress(double progress)
     {
-        if (!_disposed && State.Stage == UpdateStage.Downloading)
+        // The menu shows whole percents: a 200 MB download would otherwise redraw it thousands of times.
+        if (!_disposed && State.Stage == UpdateStage.Downloading
+            && Math.Floor(progress * 100) != Math.Floor(State.Progress * 100))
             SetState(State with { Progress = progress });
     }
 
@@ -309,6 +310,16 @@ public sealed class Updater(
             if (log.IsEnabled(LogLevel.Information))
                 log.LogInformation("Install of version {Version} put off: a window was kept open", release.Version);
             SetState(State with { Stage = UpdateStage.Downloaded });
+            return;
+        }
+
+        // The questions pumped messages: ShowTime may have been quit, or a recording started by a shortcut meanwhile.
+        if (_disposed)
+            return;
+        if (recording.IsBusy)
+        {
+            SetState(State with { Stage = UpdateStage.Downloaded });
+            InstallWhenIdle();
             return;
         }
 

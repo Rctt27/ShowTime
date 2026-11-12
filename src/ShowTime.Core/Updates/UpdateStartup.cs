@@ -54,11 +54,10 @@ public static class UpdateStartup
             return;
         }
 
-        if (fileSystem.File.Exists(layout.RestoreFailedMarker))
+        if (KeptBackup(layout, fileSystem, log) is { } backup)
         {
             // The script could not put the old version back: the backup may be its only copy, so nothing is deleted
-            // until the user has dealt with it and removed the marker.
-            var backup = ReadBackupPath(layout, fileSystem);
+            // until the user has moved or deleted it.
             log.LogWarning("An update could not be undone entirely; the old version is kept in {Backup}", backup);
             dialogs.ShowWarning($"La mise à jour n'a pas pu être annulée entièrement : l'ancienne version est conservée dans {backup}.");
             return;
@@ -72,8 +71,34 @@ public static class UpdateStartup
         }
     }
 
+    /// <summary>
+    /// The backup an incomplete restore left, while it is still there; null otherwise. Once the user has moved or deleted
+    /// it, as the warning asks, the marker protects nothing: it is deleted, so that updates and cleaning resume.
+    /// </summary>
+    internal static string? KeptBackup(UpdateLayout layout, IFileSystem fileSystem, ILogger log)
+    {
+        if (!fileSystem.File.Exists(layout.RestoreFailedMarker))
+            return null;
+        var backup = ReadBackupPath(layout, fileSystem);
+        if (fileSystem.Directory.Exists(backup) || fileSystem.File.Exists(backup))
+            return backup;
+
+        try
+        {
+            fileSystem.File.Delete(layout.RestoreFailedMarker);
+            if (log.IsEnabled(LogLevel.Information))
+                log.LogInformation("The backup {Backup} of an update that could not be undone is gone; marker removed", backup);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            log.LogWarning(ex, "Could not remove the marker {Marker}", layout.RestoreFailedMarker);
+        }
+
+        return null;
+    }
+
     /// <summary>The backup's path, as the script wrote it in the marker; the layout's when it cannot be read.</summary>
-    internal static string ReadBackupPath(UpdateLayout layout, IFileSystem fileSystem)
+    private static string ReadBackupPath(UpdateLayout layout, IFileSystem fileSystem)
     {
         try
         {
