@@ -57,6 +57,18 @@ public sealed class CodeSignatureTests
     }
 
     [Fact]
+    public void An_implicit_designated_requirement_is_read_too()
+    {
+        // codesign comments out a requirement it derived rather than one the signature carries explicitly.
+        const string implicitRequirement =
+            "Executable=/Applications/ShowTime.app/Contents/MacOS/ShowTime\n"
+            + "# designated => identifier \"io.github.rctt27.showtime\" and certificate leaf = H\"6f1c0a3e9b2d4c5f7a8e1d0b3c2a4f5e6d7c8b9a\"\n";
+
+        CodeSignature.DesignatedRequirement(implicitRequirement)
+            .ShouldBe("identifier \"io.github.rctt27.showtime\" and certificate leaf = H\"6f1c0a3e9b2d4c5f7a8e1d0b3c2a4f5e6d7c8b9a\"");
+    }
+
+    [Fact]
     public void Without_a_designated_line_there_is_no_requirement() =>
         CodeSignature.DesignatedRequirement("Executable=/Applications/ShowTime.app/Contents/MacOS/ShowTime\n").ShouldBeNull();
 }

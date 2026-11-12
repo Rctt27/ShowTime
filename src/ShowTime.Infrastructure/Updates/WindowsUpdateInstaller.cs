@@ -57,6 +57,9 @@ public sealed class WindowsUpdateInstaller(IAppPaths paths, IFileSystem fileSyst
             root = single;
         if (!fileSystem.File.Exists(fileSystem.Path.Combine(root, "ShowTime.exe")))
             throw new UpdateException("l'archive ne contient pas ShowTime.exe");
+        // The script skips what is missing: without its app folder, the new version could not record nor transcribe.
+        if (!fileSystem.File.Exists(fileSystem.Path.Combine(root, "app", "ffmpeg.exe")))
+            throw new UpdateException(@"l'archive ne contient pas app\ffmpeg.exe");
         return root;
     }, cancellationToken);
 

@@ -403,6 +403,11 @@ internal sealed class FakeUpdateInstaller : IUpdateInstaller
     /// <summary>When set, notes "Stage" and "StartReplacement" there.</summary>
     public List<string>? Journal { get; set; }
 
+    /// <summary>When set, the "script" writes its started file there at once, unless <see cref="StartsScript"/> is false.</summary>
+    public System.IO.Abstractions.IFileSystem? FileSystem { get; set; }
+
+    public bool StartsScript { get; set; } = true;
+
     public bool CanReplaceApp() => CanReplace;
 
     public Task<string> StageAsync(string zipFile, string stagingFolder, CancellationToken cancellationToken)
@@ -420,6 +425,11 @@ internal sealed class FakeUpdateInstaller : IUpdateInstaller
         if (ReplacementFailure is not null)
             throw ReplacementFailure;
         Replacements.Add(plan);
+        if (FileSystem is not null && StartsScript)
+        {
+            FileSystem.Directory.CreateDirectory(Path.GetDirectoryName(plan.StartedFile)!);
+            FileSystem.File.WriteAllText(plan.StartedFile, "started");
+        }
     }
 }
 

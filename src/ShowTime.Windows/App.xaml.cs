@@ -77,13 +77,13 @@ public partial class App : Application
 
         // Tracks of videos closed before their transcription: their players are gone with the previous run.
         _services.GetRequiredService<MicrophoneTracks>().DeleteLeftovers();
-        _services.GetRequiredService<TrayController>();
 
-        // After the single-instance check and the tray: confirm a fresh update, or report one that failed, then clean up.
-        var updater = _services.GetRequiredService<Updater>();
+        // Before the tray: building it may show a modal warning (a shortcut Windows refused), which would keep a fresh
+        // update from confirming its start in time, and the script would put the old version back.
         UpdateStartup.Run(update, _services.GetRequiredService<IUpdateInstaller>().Layout, _services.GetRequiredService<IFileSystem>(),
             _services.GetRequiredService<IUserDialogs>(), SemanticVersion.From(typeof(App).Assembly.GetName().Version!), log);
-        updater.Start();
+        _services.GetRequiredService<TrayController>();
+        _services.GetRequiredService<Updater>().Start();
     }
 
     private static bool WaitForMutex(Mutex mutex, TimeSpan timeout)

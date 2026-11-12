@@ -49,6 +49,18 @@ public sealed class WindowsUpdateInstallerTests : IDisposable
     }
 
     [Fact]
+    public async Task A_zip_without_ffmpeg_is_refused()
+    {
+        // The script would install it anyway, skipping the missing app folder, then delete the old one.
+        var zip = Zip(("ShowTime/ShowTime.exe", "exe"), ("ShowTime/LISEZ-MOI.txt", "texte"));
+
+        var failure = await Should.ThrowAsync<UpdateException>(
+            () => _installer.StageAsync(zip, Path.Combine(_app, ".update-0.7.0"), TestContext.Current.CancellationToken));
+
+        failure.Message.ShouldBe(@"l'archive ne contient pas app\ffmpeg.exe");
+    }
+
+    [Fact]
     public async Task An_unreadable_zip_is_refused()
     {
         var zip = Path.Combine(_temp.Path, "broken.zip");

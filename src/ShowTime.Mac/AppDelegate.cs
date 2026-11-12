@@ -29,13 +29,14 @@ internal sealed class AppDelegate : NSApplicationDelegate
 
         // The microphone tracks of a previous run, closed before they were transcribed.
         _services.GetRequiredService<MicrophoneTracks>().DeleteLeftovers();
-        _services.GetRequiredService<StatusMenu>();
-        _services.GetRequiredService<HangWatchdog>().Start();
 
-        // After the menu: confirm a fresh update, or report one that failed, then clean up; then check for a newer one.
+        // Before the menu: building it may show a modal warning (a shortcut macOS refused), which would keep a fresh
+        // update from confirming its start in time, and the script would put the old version back.
         var arguments = UpdateArguments.Parse(NSProcessInfo.ProcessInfo.Arguments.Skip(1).ToList());
         UpdateStartup.Run(arguments, _services.GetRequiredService<IUpdateInstaller>().Layout, _services.GetRequiredService<IFileSystem>(),
             _services.GetRequiredService<IUserDialogs>(), SemanticVersion.From(typeof(AppDelegate).Assembly.GetName().Version!), log);
+        _services.GetRequiredService<StatusMenu>();
+        _services.GetRequiredService<HangWatchdog>().Start();
         _services.GetRequiredService<Updater>().Start();
 
         // "open -a ShowTime --args --test-hang": 15 s after launch, time enough to open ShowTime's menu or start a

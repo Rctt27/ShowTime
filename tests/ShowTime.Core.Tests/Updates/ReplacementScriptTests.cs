@@ -16,6 +16,24 @@ public sealed class ReplacementScriptTests
             "/Applications/.ShowTime-update-0.7.0/extracted/ShowTime.app", Current, Next, log);
 
     [Fact]
+    public void Both_scripts_write_their_started_file_before_anything_else()
+    {
+        // ShowTime quits only once it sees this file: a script the system blocks must leave it open.
+        var windows = WindowsPlan();
+        windows.StartedFile.ShouldBe(@"C:\Tools\ShowTime\.update-0.7.0\started");
+        var ps = ReplacementScript.ForWindows(windows);
+        ps.ShouldContain(@"$started = 'C:\Tools\ShowTime\.update-0.7.0\started'");
+        ps.IndexOf("WriteAllText($started", StringComparison.Ordinal)
+            .ShouldBeInRange(0, ps.IndexOf("Get-Process -Id $processId", StringComparison.Ordinal));
+
+        var mac = MacPlan();
+        mac.StartedFile.ShouldBe("/Applications/.ShowTime-update-0.7.0/started");
+        var sh = ReplacementScript.ForMacOS(mac);
+        sh.IndexOf("echo started > \"$started\"", StringComparison.Ordinal)
+            .ShouldBeInRange(0, sh.IndexOf("kill -0 \"$pid\"", StringComparison.Ordinal));
+    }
+
+    [Fact]
     public void The_Windows_plan_relaunches_the_exe_with_the_confirmation_or_the_failure()
     {
         var plan = WindowsPlan();

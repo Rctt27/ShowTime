@@ -20,8 +20,9 @@ Quand une version plus récente est publiée, le menu de l'icône propose « Ins
 
 - Une vidéo en cours : l'installation attend qu'elle soit finie (« Installation après l'enregistrement… »).
 - Une capture non enregistrée : l'éditeur pose sa question habituelle ; « Annuler » met l'installation en pause, et un nouveau clic la reprend sans retélécharger.
-- Une transcription en cours : elle est interrompue, comme lorsqu'on quitte ShowTime ; la vidéo est conservée, et « Générer les sous-titres » dans le lecteur la relance.
+- Une transcription en cours : elle est interrompue, comme lorsqu'on quitte ShowTime ; la vidéo est conservée, mais ses sous-titres sont perdus. Attendez la fin de la transcription avant de cliquer sur « Installer la version X.Y.Z ».
 - Si la nouvelle version ne démarre pas dans la minute, l'ancienne est remise en place et un message l'explique.
+- Si un logiciel de sécurité empêche le script de remplacement de s'exécuter, ShowTime reste ouvert et le dit ; la version téléchargée est gardée.
 - Si ShowTime ne peut pas écrire dans son dossier (Program Files, `/Applications` protégé, image disque), le menu ouvre la page de la version dans le navigateur, pour une mise à jour à la main.
 
 La recherche automatique se désactive dans les réglages (« Rechercher automatiquement les mises à jour ») ; le menu propose alors « Rechercher une mise à jour ».
@@ -96,7 +97,7 @@ ShowTime est « local first » : tout ce qu'il produit reste sur l'ordinateur. V
 | Quoi | Vers | Quand | Ce qui part |
 | --- | --- | --- | --- |
 | Recherche d'une mise à jour | `api.github.com` (dernière version de ce dépôt) | 5 s après le démarrage, puis toutes les 6 heures, et à l'ouverture du menu si la dernière réponse date de plus de 15 minutes ; ou au clic sur « Rechercher une mise à jour » | une requête HTTPS avec l'en-tête `User-Agent: ShowTime/X.Y.Z` ; GitHub voit l'adresse IP |
-| Téléchargement d'une mise à jour | `github.com` et `objects.githubusercontent.com` | au clic sur « Installer la version X.Y.Z » | une requête HTTPS pour le zip de la version |
+| Téléchargement d'une mise à jour | `github.com`, qui redirige vers `release-assets.githubusercontent.com` | au clic sur « Installer la version X.Y.Z » | une requête HTTPS pour le zip de la version |
 
 Ne part jamais : les captures, les vidéos, les sous-titres, les réglages, le journal, ni aucune statistique. ffmpeg et le modèle de transcription sont fournis avec ShowTime, jamais téléchargés à part. Décocher « Rechercher automatiquement les mises à jour » dans les réglages supprime la recherche automatique : ShowTime ne se connecte plus que si vous cliquez sur « Rechercher une mise à jour ».
 

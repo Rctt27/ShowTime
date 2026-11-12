@@ -39,6 +39,7 @@ public sealed class UpdaterInstallTests : IDisposable
         _installer.Layout = new UpdateLayout(platform,
             platform == UpdatePlatform.WindowsX64 ? install : Path.Combine(install, "ShowTime.app"));
         _fs.AddDirectory(_installer.Layout.AppPath);
+        _installer.FileSystem = _fs;
         _downloader = new FakeUpdateDownloader(_fs) { Content = Zip };
         _paths.LogsFolder.Returns(_logs);
         _feed.Json = ReleaseOf(Zip);
@@ -193,7 +194,7 @@ public sealed class UpdaterInstallTests : IDisposable
 
         await updater.InstallAsync();
 
-        _dialogs.Received(1).ShowError(DownloadFailed + "GitHub a répondu 404.");
+        _dialogs.Received(1).ShowError(DownloadFailed + "GitHub a renvoyé une erreur (code 404).");
         _fs.Directory.Exists(Staging).ShouldBeFalse();
         updater.State.Stage.ShouldBe(UpdateStage.Available);
 
@@ -384,6 +385,52 @@ public sealed class UpdaterInstallTests : IDisposable
         nested.ShouldNotBeNull().IsCompletedSuccessfully.ShouldBeTrue();
         _host.CloseRequests.ShouldBe(2);
         updater.State.Stage.ShouldBe(UpdateStage.Downloaded);
+    }
+
+    [Fact]
+    public async Task A_full_disk_is_reported_in_French()
+    {
+        _downloader.Failure = new IOException("There is not enough space on the disk.");
+        var updater = await Offering();
+
+        await updater.InstallAsync();
+
+        _dialogs.Received(1).ShowError(DownloadFailed + "impossible d'écrire sur le disque (est-il plein ?). Le détail est dans le journal.");
+    }
+
+    [Fact]
+    public async Task Install_quits_only_once_the_script_has_started()
+    {
+        // PowerShell takes a moment to start: ShowTime waits for the file the script writes first.
+        _installer.StartsScript = false;
+        var updater = await Offering();
+
+        await updater.InstallAsync();
+
+        _installer.Replacements.Count.ShouldBe(1);
+        _host.Quits.ShouldBe(0);
+        updater.State.Stage.ShouldBe(UpdateStage.Installing);
+
+        _fs.AddFile(_installer.Replacements[0].StartedFile, new MockFileData("started"));
+        _clock.Advance(TimeSpan.FromMilliseconds(100));
+
+        _host.Quits.ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task A_script_the_system_blocks_leaves_ShowTime_open_with_the_download()
+    {
+        _installer.StartsScript = false;
+        var updater = await Offering();
+
+        await updater.InstallAsync();
+        for (var i = 0; i < 110; i++)
+            _clock.Advance(TimeSpan.FromMilliseconds(100));
+
+        _host.Quits.ShouldBe(0);
+        updater.State.Stage.ShouldBe(UpdateStage.Downloaded);
+        _dialogs.Received(1).ShowError(
+            "La mise à jour n'a pas pu être installée : le script de remplacement n'a pas démarré ; un logiciel de sécurité l'a peut-être bloqué.");
     }
 
     [Fact]

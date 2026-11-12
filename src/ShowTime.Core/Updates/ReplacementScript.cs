@@ -17,6 +17,9 @@ public sealed record ReplacementPlan(int ProcessId, UpdateLayout Layout, string 
     public const string ConfirmArgument = "--update-confirm";
     public const string FailedArgument = "--update-failed";
 
+    /// <summary>Written by the script before anything else: ShowTime quits only once it is there.</summary>
+    public string StartedFile => Layout.StagingFolder(To) + (Layout.Platform == UpdatePlatform.WindowsX64 ? @"\started" : "/started");
+
     /// <summary>The plan of an update of <paramref name="layout"/> from <paramref name="from"/> to <paramref name="to"/>.</summary>
     public static ReplacementPlan For(int processId, UpdateLayout layout, string stagedApp, SemanticVersion from, SemanticVersion to, string logFile)
     {
@@ -71,6 +74,7 @@ public static partial class ReplacementScript
             ["STAGING"] = PowerShellQuote(layout.StagingFolder(plan.To)),
             ["ITEMS"] = string.Join(", ", layout.Items.Select(PowerShellQuote)),
             ["CONFIRM"] = PowerShellQuote(plan.ConfirmFile),
+            ["STARTED"] = PowerShellQuote(plan.StartedFile),
             ["TIMEOUT"] = Seconds(plan.ConfirmTimeout),
             ["LOG"] = PowerShellQuote(plan.LogFile),
             ["NEWFILE"] = PowerShellQuote(plan.LaunchNew[0]),
@@ -96,6 +100,7 @@ public static partial class ReplacementScript
             ["STAGED"] = ShellQuote(plan.StagedApp),
             ["STAGING"] = ShellQuote(layout.StagingFolder(plan.To)),
             ["CONFIRM"] = ShellQuote(plan.ConfirmFile),
+            ["STARTED"] = ShellQuote(plan.StartedFile),
             ["TIMEOUT"] = Seconds(plan.ConfirmTimeout),
             ["LOG"] = ShellQuote(plan.LogFile),
             ["NEW"] = string.Join(' ', plan.LaunchNew.Select(ShellQuote)),
@@ -178,6 +183,11 @@ public static partial class ReplacementScript
         $log = @LOG@
         $newFile = @NEWFILE@
         $newArguments = @NEWARGS@
+        $started = @STARTED@
+
+        # First of all: ShowTime only quits once it sees this file, so that a script blocked by the system (execution
+        # policy, application control) leaves it running instead of quitting for nothing.
+        try { [System.IO.File]::WriteAllText($started, 'started') } catch { exit 3 }
         $oldFile = @OLDFILE@
         $oldArguments = @OLDARGS@
 
@@ -381,6 +391,10 @@ public static partial class ReplacementScript
         confirm=@CONFIRM@
         confirm_seconds=@TIMEOUT@
         log=@LOG@
+        started=@STARTED@
+
+        # First of all: ShowTime only quits once it sees this file.
+        echo started > "$started" 2>/dev/null || exit 3
 
         say() {
           printf '%s %s\n' "$(date '+%Y-%m-%d %H:%M:%S')" "$1" >> "$log"

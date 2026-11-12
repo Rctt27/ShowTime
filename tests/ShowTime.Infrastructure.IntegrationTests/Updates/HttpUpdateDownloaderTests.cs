@@ -1,4 +1,5 @@
 using System.Net;
+using ShowTime.Core.Ports;
 using ShowTime.Infrastructure.Updates;
 
 namespace ShowTime.Infrastructure.IntegrationTests.Updates;
@@ -44,6 +45,21 @@ public sealed class HttpUpdateDownloaderTests : IDisposable
     }
 
     [Fact]
+    public async Task A_download_that_stops_receiving_fails_instead_of_waiting_for_ever()
+    {
+        // A laptop put to sleep, or a Wi-Fi network left, mid-download: no error, no more bytes either.
+        var handler = new StubHandler((_, _) => Task.FromResult(Response(new StalledStream(), 1024 * 1024)));
+        using var downloader = new HttpUpdateDownloader(handler, idleTimeout: TimeSpan.FromMilliseconds(200));
+        var file = _folder.File("stalled.zip");
+
+        var failure = await Should.ThrowAsync<UpdateException>(
+            () => downloader.DownloadAsync(Url, file, new RecordingProgress(), TestContext.Current.CancellationToken));
+
+        failure.Message.ShouldBe("le téléchargement s'est interrompu");
+        File.Exists(file).ShouldBeFalse();
+    }
+
+    [Fact]
     public async Task A_failed_download_leaves_no_file()
     {
         var bytes = new byte[256 * 1024];
@@ -76,6 +92,27 @@ public sealed class HttpUpdateDownloaderTests : IDisposable
     }
 
     /// <summary>Hands out at most one chunk per read, and fails after a number of chunks when asked.</summary>
+    /// <summary>A response body whose bytes never come.</summary>
+    private sealed class StalledStream : Stream
+    {
+        public override bool CanRead => true;
+        public override bool CanSeek => false;
+        public override bool CanWrite => false;
+        public override long Length => throw new NotSupportedException();
+        public override long Position { get => 0; set => throw new NotSupportedException(); }
+        public override void Flush() { }
+        public override int Read(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+        public override long Seek(long offset, SeekOrigin origin) => throw new NotSupportedException();
+        public override void SetLength(long value) => throw new NotSupportedException();
+        public override void Write(byte[] buffer, int offset, int count) => throw new NotSupportedException();
+
+        public override async ValueTask<int> ReadAsync(Memory<byte> buffer, CancellationToken cancellationToken = default)
+        {
+            await Task.Delay(Timeout.Infinite, cancellationToken);
+            return 0;
+        }
+    }
+
     private sealed class ChunkedStream(byte[] data, int chunk, int? failAfter) : Stream
     {
         private int _position;

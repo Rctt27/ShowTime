@@ -1,4 +1,5 @@
 using System.IO.Abstractions;
+using System.Net;
 using System.Text.Json;
 using Microsoft.Extensions.Logging;
 using ShowTime.Core.Ports;
@@ -35,14 +36,21 @@ public sealed class Updater(
     /// <summary>Opening the menu checks again once the last answer is this old.</summary>
     public static readonly TimeSpan Freshness = TimeSpan.FromMinutes(15);
 
+    /// <summary>How long ShowTime waits for the replacement script to start before giving up and staying open.</summary>
+    public static readonly TimeSpan ScriptStartTimeout = TimeSpan.FromSeconds(10);
+
+    private static readonly TimeSpan ScriptPoll = TimeSpan.FromMilliseconds(100);
+
     private const string CheckFailedMessage = "Impossible de vérifier les mises à jour : ";
     private const string DownloadFailedMessage = "La mise à jour n'a pas pu être téléchargée : ";
     private const string InstallFailedMessage = "La mise à jour n'a pas pu être installée : ";
+    private const string ScriptDidNotStart = "le script de remplacement n'a pas démarré ; un logiciel de sécurité l'a peut-être bloqué.";
     private const string ZipName = "ShowTime.zip";
     private const string ScriptLogName = "update.log";
 
     private readonly CancellationTokenSource _disposing = new();
     private ITimer? _schedule;
+    private ITimer? _scriptWait;
     private TaskCompletionSource<CheckResult>? _check;
     private DateTimeOffset? _lastAnswer;
     private string? _stagedApp;
@@ -131,6 +139,7 @@ public sealed class Updater(
             return;
         _disposed = true;
         _schedule?.Dispose();
+        StopWaitingForScript();
         recording.StateChanged -= OnRecordingChanged;
 
         // A download under way deletes its staging folder once cancelled; a staged version waiting to be installed is
@@ -325,6 +334,7 @@ public sealed class Updater(
 
         var plan = ReplacementPlan.For(Environment.ProcessId, installer.Layout, _stagedApp!, current, release.Version,
             fileSystem.Path.Combine(paths.LogsFolder, ScriptLogName));
+        DeleteQuietly(plan.StartedFile);
         try
         {
             installer.StartReplacement(plan);
@@ -338,9 +348,63 @@ public sealed class Updater(
             return;
         }
 
+        if (fileSystem.File.Exists(plan.StartedFile))
+            QuitForReplacement(release);
+        else
+            WaitForScript(plan, release);
+    }
+
+    /// <summary>
+    /// The system may refuse to run the script (execution policy, application control): ShowTime then stays open with
+    /// the staged version, rather than quitting and never coming back.
+    /// </summary>
+    private void WaitForScript(ReplacementPlan plan, ReleaseInfo release)
+    {
+        var deadline = clock.GetUtcNow() + ScriptStartTimeout;
+        _scriptWait = clock.CreateTimer(_ => uiThread.Post(() =>
+        {
+            if (_disposed || _scriptWait is null || State.Stage != UpdateStage.Installing)
+                return;
+            if (fileSystem.File.Exists(plan.StartedFile))
+            {
+                StopWaitingForScript();
+                QuitForReplacement(release);
+            }
+            else if (clock.GetUtcNow() >= deadline)
+            {
+                StopWaitingForScript();
+                if (log.IsEnabled(LogLevel.Error))
+                    log.LogError("The replacement script for version {Version} did not start within {Timeout}", release.Version, ScriptStartTimeout);
+                SetState(State with { Stage = UpdateStage.Downloaded });
+                dialogs.ShowError(InstallFailedMessage + ScriptDidNotStart);
+            }
+        }), null, ScriptPoll, ScriptPoll);
+    }
+
+    private void StopWaitingForScript()
+    {
+        _scriptWait?.Dispose();
+        _scriptWait = null;
+    }
+
+    private void QuitForReplacement(ReleaseInfo release)
+    {
         if (log.IsEnabled(LogLevel.Information))
             log.LogInformation("Replacing version {Current} with {Version}; quitting", current, release.Version);
         host.Quit();
+    }
+
+    private void DeleteQuietly(string file)
+    {
+        try
+        {
+            if (fileSystem.File.Exists(file))
+                fileSystem.File.Delete(file);
+        }
+        catch (Exception ex) when (ex is IOException or UnauthorizedAccessException)
+        {
+            log.LogWarning(ex, "Could not delete {File}", file);
+        }
     }
 
     /// <summary>The recording session may raise this mid-transition: the install goes on outside its handlers.</summary>
@@ -383,10 +447,15 @@ public sealed class Updater(
     private static string Reason(Exception failure) => failure switch
     {
         OperationCanceledException => "GitHub n'a pas répondu à temps.",
-        HttpRequestException { StatusCode: { } status } => $"GitHub a répondu {(int)status}.",
-        HttpRequestException => "GitHub est injoignable. Vérifiez la connexion à Internet.",
+        HttpRequestException { StatusCode: HttpStatusCode.Forbidden or HttpStatusCode.TooManyRequests } =>
+            "GitHub limite le nombre de vérifications ; réessayez dans une heure.",
+        HttpRequestException { StatusCode: { } status } => $"GitHub a renvoyé une erreur (code {(int)status}).",
+        HttpRequestException => "GitHub est injoignable. Vérifiez votre connexion à Internet.",
         JsonException => "la réponse de GitHub est illisible.",
-        _ => failure.Message,
+        // Its own messages are French; any other one comes from .NET, in English: the log has it.
+        UpdateException => failure.Message,
+        IOException => "impossible d'écrire sur le disque (est-il plein ?). Le détail est dans le journal.",
+        _ => "une erreur inattendue s'est produite. Le détail est dans le journal.",
     };
 
     private sealed record CheckResult(ReleaseInfo? Release, Exception? Failure);

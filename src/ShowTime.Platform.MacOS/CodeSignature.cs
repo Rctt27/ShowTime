@@ -25,6 +25,7 @@ public static class CodeSignature
             .FirstOrDefault(requirement => requirement.Length > 0);
     }
 
+    // codesign prefixes with "# " a designated requirement it derived rather than read from the signature.
     private static IEnumerable<string> Lines(string output) =>
-        output.Split('\n').Select(line => line.Trim());
+        output.Split('\n').Select(line => line.Trim().TrimStart('#').Trim());
 }

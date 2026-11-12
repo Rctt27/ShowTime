@@ -317,16 +317,42 @@ public sealed class UpdaterCheckTests : IDisposable
         updater.State.Stage.ShouldBe(UpdateStage.Idle);
     }
 
-    [Fact]
-    public void A_manual_check_names_the_status_GitHub_answered()
+    [Theory]
+    [InlineData(System.Net.HttpStatusCode.Forbidden)]
+    [InlineData(System.Net.HttpStatusCode.TooManyRequests)]
+    public void A_manual_check_says_GitHub_limits_the_checks(System.Net.HttpStatusCode status)
     {
-        // GitHub answers 403 once the unauthenticated rate limit is reached.
-        _feed.Failure = new HttpRequestException("Forbidden", null, System.Net.HttpStatusCode.Forbidden);
+        // GitHub answers 403 or 429 once the unauthenticated rate limit is reached.
+        _feed.Failure = new HttpRequestException("Forbidden", null, status);
         var updater = Create();
 
         updater.CheckNowAsync().IsCompletedSuccessfully.ShouldBeTrue();
 
-        _dialogs.Received(1).ShowError("Impossible de vérifier les mises à jour : GitHub a répondu 403.");
+        _dialogs.Received(1).ShowError(
+            "Impossible de vérifier les mises à jour : GitHub limite le nombre de vérifications ; réessayez dans une heure.");
+    }
+
+    [Fact]
+    public void A_manual_check_names_another_error_code()
+    {
+        _feed.Failure = new HttpRequestException("Bad Gateway", null, System.Net.HttpStatusCode.BadGateway);
+        var updater = Create();
+
+        updater.CheckNowAsync().IsCompletedSuccessfully.ShouldBeTrue();
+
+        _dialogs.Received(1).ShowError("Impossible de vérifier les mises à jour : GitHub a renvoyé une erreur (code 502).");
+    }
+
+    [Fact]
+    public void An_unexpected_failure_is_not_shown_in_English()
+    {
+        _feed.Failure = new InvalidOperationException("Something went wrong");
+        var updater = Create();
+
+        updater.CheckNowAsync().IsCompletedSuccessfully.ShouldBeTrue();
+
+        _dialogs.Received(1).ShowError(
+            "Impossible de vérifier les mises à jour : une erreur inattendue s'est produite. Le détail est dans le journal.");
     }
 
     [Fact]
