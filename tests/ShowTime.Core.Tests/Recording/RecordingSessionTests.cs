@@ -170,7 +170,7 @@ public sealed class RecordingSessionTests
         await RecordingAsync();
 
         // ffmpeg is launched during the countdown and captures at once here: no "starting" after 0.
-        View.Calls.ShouldBe(["ready Ctrl+R Ctrl+D", "countdown 3", "countdown 3", "countdown 2", "countdown 1", "recording"]);
+        View.Calls.ShouldBe(["ready Ctrl+R Ctrl+D", "countdown 3", "countdown 3", "countdown 2", "countdown 1", "launching", "recording"]);
         // With a model, the microphone is also written alone, for subtitles now or from the player later.
         _recorders.Options.ShouldBe(new VideoOptions(60, "Mic A", true, _recorders.Options!.MicrophoneTrackPath));
         _recorders.Options.MicrophoneTrackPath.ShouldNotBeNull();
@@ -237,6 +237,30 @@ public sealed class RecordingSessionTests
         View.Calls.ShouldContain("countdown 1");
         View.Calls.ShouldNotContain("starting");
         _session.IsReady.ShouldBeFalse();
+    }
+
+    [Fact]
+    public async Task The_view_is_told_before_ffmpeg_is_launched_so_that_the_bar_can_leave_the_picture()
+    {
+        // On macOS the bar cannot be kept out of a screen recording: covering the area, it must be gone first.
+        var toldFirst = false;
+        _recorders.Starting = () => toldFirst = View.Calls.Contains("launching");
+        await ReadyAsync();
+        await LaunchedAfterAsync();
+
+        toldFirst.ShouldBeTrue();
+        View.Calls.Count(c => c == "launching").ShouldBe(1);
+    }
+
+    [Fact]
+    public async Task Nothing_is_launched_nor_announced_when_Stop_comes_before_the_launch()
+    {
+        await ReadyAsync();
+        var start = _session.StartAsync();
+        await _session.StopAsync();
+        await _clock.RunUntil(start);
+
+        View.Calls.ShouldNotContain("launching");
     }
 
     [Fact]

@@ -22,6 +22,12 @@ public interface IRecordingView : IDisposable
 
     void ShowCountdown(int seconds);
 
+    /// <summary>
+    /// ffmpeg is about to be launched, still during the countdown: from now on, whatever is on the recorded area may be
+    /// in the video. Followed by <see cref="ShowReady"/> if Stop comes before 0.
+    /// </summary>
+    void ShowLaunching();
+
     /// <summary>ffmpeg is launched but not capturing yet: Stop already works, the counter waits.</summary>
     void ShowStarting();
 

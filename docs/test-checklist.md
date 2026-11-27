@@ -180,6 +180,8 @@ Le réglage « Après une capture » revient à « Ouvrir dans l'éditeur » (`"
 - [ ] Silence : 10 s enregistrées sans rien jouer, avec le micro et le son du Mac : la piste dure autant que la vidéo et la voix garde son niveau.
 - [ ] Capture du son en échec (le journal `~/Library/Logs/ShowTime` le dit) : la vidéo s'enregistre quand même, avec un son du Mac muet de la durée de la vidéo.
 - [ ] Le cadre rouge et la barre n'apparaissent pas dans la vidéo.
+- [ ] Vidéo de tout l'écran avec un seul écran : le compte à rebours dit « Début dans 3… · barre masquée », la barre disparaît avant 0 et n'est pas dans la vidéo ; le raccourci d'arrêt et « Arrêter l'enregistrement » du menu arrêtent ; arrêter pendant le compte à rebours, après sa disparition, la fait revenir sur « Prêt à enregistrer ». Avec deux écrans, la barre va en bas de l'autre écran et reste visible.
+- [ ] Vidéo d'une zone : glisser la barre sur la zone avant « Démarrer » ; elle se masque de même et n'est pas dans la vidéo.
 - [ ] Surlignage : pendant l'enregistrement (pas avant ni après), la barre montre « Surligner : maintenir Option+Space ». Maintenir `Option+Espace` en survolant un bouton : une traînée jaune translucide suit la souris, rien n'est tapé dans l'application ; au relâchement, elle reste 0,3 s puis s'estompe. Relâcher Option avant Espace compte comme un relâchement : même pause puis même fondu.
 - [ ] Dans le MP4 : la traînée et son fondu sont visibles ; avec deux écrans d'échelles différentes, la traînée est sous la souris sur l'écran enregistré.
 - [ ] Le trait : lent large, rapide fin, un cercle fluide, des bords lisses, pas plus foncé là où il se croise.

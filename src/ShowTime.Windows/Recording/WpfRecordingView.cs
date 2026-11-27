@@ -37,6 +37,12 @@ internal sealed class WpfRecordingView : IRecordingView
     public void ShowReady(string? startShortcut, string? stopShortcut) => _bar.ShowReady(startShortcut, stopShortcut);
     public void SetAudioDevices(IReadOnlyCollection<string> devices) => _bar.SetAudioDevices(devices);
     public void ShowCountdown(int seconds) => _bar.ShowCountdown(seconds);
+
+    /// <summary>Nothing to do: the bar and the frame are excluded from captures (<c>WDA_EXCLUDEFROMCAPTURE</c>).</summary>
+    public void ShowLaunching()
+    {
+    }
+
     public void ShowStarting() => _bar.ShowStarting();
     public void ShowRecording() => _bar.ShowRecording();
     public void ShowHighlightShortcut(string? shortcut) => _bar.ShowHighlightShortcut(shortcut);

@@ -201,6 +201,8 @@ public sealed class RecordingSession(
             _reservedNumber = counter.Reserve();
             _microphoneTrack = track;
             _transcribe = settings.TranscribeMicrophone;
+            // Before the launch: ffmpeg's first frames come before 0, and a bar on the area must not be in them.
+            view.ShowLaunching();
             _recorder = started = recorders.Start(_ffmpeg, _target, path, options,
                 recorder => uiThread.Post(() => OnUnexpectedExit(recorder)));
         }

@@ -128,6 +128,7 @@ internal sealed class FakeRecordingView : IRecordingView
     public void ShowReady(string? startShortcut, string? stopShortcut) => Calls.Add($"ready {startShortcut} {stopShortcut}");
     public void SetAudioDevices(IReadOnlyCollection<string> devices) => Devices = devices;
     public void ShowCountdown(int seconds) => Calls.Add($"countdown {seconds}");
+    public void ShowLaunching() => Calls.Add("launching");
     public void ShowStarting() => Calls.Add("starting");
     public void ShowRecording() => Calls.Add("recording");
     public void ShowFinishing() => Calls.Add("finishing");
@@ -193,10 +194,14 @@ internal sealed class FakeRecorderFactory : IVideoRecorderFactory
     /// <summary>Forgets the last recorder, so that a test can wait for the next one.</summary>
     public void Reset() => Recorder = null;
 
+    /// <summary>Called as ffmpeg is launched, before anything is captured.</summary>
+    public Action? Starting { get; set; }
+
     public IVideoRecorder Start(string ffmpegPath, PixelRect area, string outputPath, VideoOptions options, Action<IVideoRecorder> onUnexpectedExit)
     {
         if (StartFailure is not null)
             throw StartFailure;
+        Starting?.Invoke();
         Area = area;
         Options = options;
         StartedAt = Clock.GetUtcNow();
