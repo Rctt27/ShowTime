@@ -57,7 +57,7 @@ Outils : flèche, ligne, rectangle, ellipse, crayon, surligneur, texte, numéros
 
 ## Vidéo
 
-Enregistrement en MP4 d'une zone ou de tout l'écran. Une fois la zone choisie, une barre permet d'activer ou de couper le micro et le son de l'ordinateur, puis un clic sur la gauche de la barre (▶ « Démarrer ») ou le raccourci de démarrage lance un compte à rebours de 3 secondes. Pendant l'enregistrement, la même zone affiche la durée : un clic dessus (■ « Arrêter ») ou le raccourci d'arrêt enregistre la vidéo. Le cadre rouge et la barre restent invisibles dans la vidéo.
+Enregistrement en MP4 d'une zone ou de tout l'écran. Une fois la zone choisie, une barre permet d'activer ou de couper le micro et le son de l'ordinateur, puis un clic sur la gauche de la barre (▶ « Démarrer ») ou le raccourci de démarrage lance un compte à rebours de 3 secondes. Pendant l'enregistrement, la même zone affiche la durée : un clic dessus (■ « Arrêter ») ou le raccourci d'arrêt enregistre la vidéo. Le cadre rouge et la barre restent invisibles dans la vidéo. Sur Mac, quand la barre n'a pas de place hors de la zone (tout l'écran avec un seul écran), elle se masque au début de l'enregistrement : le raccourci d'arrêt ou le menu de ShowTime dans la barre des menus arrêtent alors la vidéo.
 
 La vidéo s'ouvre ensuite dans un aperçu qui la lit aussitôt, avec l'image à chaque instant au survol de la barre de défilement. `←` / `→` reculent ou avancent de 5 secondes, `Début` revient au début, `Espace` lit ou met en pause. On peut l'afficher dans l'Explorateur ou le Finder, l'envoyer à la Corbeille, ou **Refaire** : la vidéo part à la Corbeille et un nouvel enregistrement commence de la même façon.
 

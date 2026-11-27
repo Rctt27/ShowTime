@@ -31,6 +31,7 @@ internal sealed class MacRecordingView : IRecordingView
     public void ShowReady(string? startShortcut, string? stopShortcut) => _bar.ShowReady(startShortcut, stopShortcut);
     public void SetAudioDevices(IReadOnlyCollection<string> devices) => _bar.SetAudioDevices(devices);
     public void ShowCountdown(int seconds) => _bar.ShowCountdown(seconds);
+    public void ShowLaunching() => _bar.LeaveThePicture();
     public void ShowStarting() => _bar.ShowStarting();
     public void ShowRecording() => _bar.ShowRecording();
 

@@ -8,12 +8,16 @@ using ShowTime.Core.Ports;
 using ShowTime.Core.Recording;
 using ShowTime.Core.Settings;
 using ShowTime.Mac.Platform;
+using ShowTime.Platform.MacOS;
 
 namespace ShowTime.Mac.Recording;
 
 /// <summary>
 /// Audio toggles and Start before recording, then elapsed time, Stop and Cancel. A panel that never takes the focus
-/// from the application being filmed, can be dragged anywhere, and is excluded from the video.
+/// from the application being filmed, and can be dragged anywhere. Since macOS 15.4, ScreenCaptureKit, which ffmpeg's
+/// avfoundation records through, no longer leaves out a window marked <see cref="NSWindowSharingType.None"/>: the bar
+/// is kept off the recorded area, on another screen when the area fills its own, and otherwise hidden while ffmpeg
+/// records (<see cref="LeaveThePicture"/>).
 /// </summary>
 internal sealed class RecordingBar : NSPanel
 {
@@ -39,6 +43,8 @@ internal sealed class RecordingBar : NSPanel
     private bool _hasMicrophone = true;
     private bool _hasSystemAudio = true;
     private bool _audioLocked;
+    private PixelRect _area;
+    private bool _leftThePicture;
 
     /// <param name="canTranscribe">Whether there is a model to transcribe the microphone with.</param>
     public RecordingBar(AppSettings settings, ISettingsStore store, IFfmpegPlatform platform, INativeWindows windows, bool canTranscribe)
@@ -122,17 +128,51 @@ internal sealed class RecordingBar : NSPanel
     /// <summary>Clicks on the bar work without bringing ShowTime to the front.</summary>
     public override bool CanBecomeKeyWindow => false;
 
-    /// <summary>Below the recorded area when there is room, otherwise above it, otherwise inside it.</summary>
+    /// <summary>
+    /// Below the recorded area when there is room, otherwise above it; for an area filling its screen, at the bottom
+    /// of another screen; with none, inside the area, and then hidden while ffmpeg records.
+    /// </summary>
     public void ShowNear(PixelRect area)
     {
-        var screen = ScreenInfo.Holding(area);
+        var holding = ScreenInfo.Holding(area);
+        var screens = ScreenInfo.Current().OrderBy(s => s.DisplayId == holding.DisplayId ? 0 : 1).ToList();
         var size = Fit();
-        var scale = screen.Frame.Scale;
-        var bar = new PixelSize((int)Math.Ceiling(size.Width * scale), (int)Math.Ceiling(size.Height * scale));
-        var position = RecordingBarPlacement.Place(area, bar, screen.WorkArea);
-        var frame = screen.ToCocoa(new PixelRect(position.X, position.Y, bar.Width, bar.Height));
+        var bars = screens.Select(s => new PixelSize((int)Math.Ceiling(size.Width * s.Frame.Scale), (int)Math.Ceiling(size.Height * s.Frame.Scale)))
+            .ToList();
+        var placement = RecordingBarPlacement.Place(area, [.. screens.Select((s, i) => new BarScreen(s.WorkArea, bars[i]))]);
+        var screen = screens[placement.Screen];
+        var bar = bars[placement.Screen];
+        var frame = screen.ToCocoa(new PixelRect(placement.Position.X, placement.Position.Y, bar.Width, bar.Height));
         SetFrameOrigin(frame.Location);
+        _area = area;
+        if (placement.CoversArea)
+            _start.ToolTip += ". La barre se masque alors pour ne pas apparaître dans la vidéo : arrêter avec le raccourci ou le menu de ShowTime";
         OrderFrontRegardless();
+    }
+
+    /// <summary>
+    /// ffmpeg is about to record: a bar on the area would be in the video, so it goes until the session ends or Stop
+    /// during the countdown brings it back (<see cref="ShowReady"/>). The shortcut and the menu bar still stop.
+    /// </summary>
+    public void LeaveThePicture()
+    {
+        if (_leftThePicture || !CoversArea())
+            return;
+        _leftThePicture = true;
+        OrderOut(null);
+    }
+
+    /// <summary>Where the bar is now, since it may have been dragged onto the area or off it.</summary>
+    private bool CoversArea()
+    {
+        if (Screen is not { } current)
+            return false;
+        var id = ScreenInfo.DisplayIdOf(current);
+        if (ScreenInfo.Current().FirstOrDefault(s => s.DisplayId == id) is not { } screen)
+            return false;
+        var f = Frame;
+        var bar = MacScreenSpace.FromCocoa(screen.Frame, screen.Pixels, new ScreenFrame(f.X, f.Y, f.Width, f.Height, screen.Frame.Scale));
+        return !bar.Intersect(_area).IsEmpty;
     }
 
     public void ShowReady(string? startShortcut, string? stopShortcut)
@@ -147,6 +187,11 @@ internal sealed class RecordingBar : NSPanel
         _highlight.Hidden = true;
         _audioLocked = false;
         UpdateAudioToggles();
+        if (_leftThePicture)
+        {
+            _leftThePicture = false;
+            OrderFrontRegardless();
+        }
     }
 
     /// <summary>Enables what this computer can record, once ffmpeg has listed the audio inputs.</summary>
@@ -167,7 +212,8 @@ internal sealed class RecordingBar : NSPanel
 
     public void ShowCountdown(int seconds)
     {
-        _status.StringValue = string.Create(CultureInfo.InvariantCulture, $"Début dans {seconds}…");
+        // Said before it happens, so that the bar vanishing is not taken for a crash.
+        _status.StringValue = string.Create(CultureInfo.InvariantCulture, $"Début dans {seconds}…{(CoversArea() ? " · barre masquée" : "")}");
         _start.Enabled = false;
         _audioLocked = true;
         UpdateAudioToggles();
